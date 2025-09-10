@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { ActivityIndicator, View } from 'react-native';
+import { ensureUserDocIfVerified } from '../../data/repositories/AuthRepo';
 
 type AuthContextType = {
   user: User | null;
@@ -21,6 +22,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsub = onAuthStateChanged(auth, async u => {
       setUser(u ?? null);
       setBooting(false);
+      // After verification, create the profile doc if missing
+      if (u && u.emailVerified) {
+        try { await ensureUserDocIfVerified(u); } catch {}
+      }
     });
     return unsub;
   }, []);

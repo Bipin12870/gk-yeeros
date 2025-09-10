@@ -64,9 +64,6 @@ export async function signUpEmail(opts: SignUpArgs): Promise<User> {
     await updateProfile(cred.user, { displayName: name });
   }
 
-  // Create user doc right away
-  await ensureUserDoc(cred.user, { phone, marketingOptIn, acceptTerms });
-
   // Send real verification email
   await sendEmailVerification(cred.user);
 
@@ -76,12 +73,17 @@ export async function signUpEmail(opts: SignUpArgs): Promise<User> {
 export async function signInEmail(email: string, password: string): Promise<User> {
   const cred = await signInWithEmailAndPassword(auth, email, password);
 
-  // Touch lastSeenAt on login
+  // Block unverified sign-in and avoid creating user docs for them
+  if (!cred.user.emailVerified) {
+    await auth.signOut();
+    throw new Error('Please verify your email before signing in.');
+  }
+
+  // Touch lastSeenAt on verified login and ensure profile exists
   const ref = doc(db, 'users', cred.user.uid);
   try {
     await updateDoc(ref, { lastSeenAt: serverTimestamp() });
   } catch {
-    // if user doc didn’t exist (rare), create a minimal one
     await ensureUserDoc(cred.user);
   }
 
@@ -94,4 +96,10 @@ export async function sendReset(email: string) {
 
 export async function resendVerification(user: User) {
   await sendEmailVerification(user);
+}
+
+/** Create user doc only when the auth user is verified */
+export async function ensureUserDocIfVerified(user: User) {
+  if (!user.emailVerified) return;
+  await ensureUserDoc(user);
 }
