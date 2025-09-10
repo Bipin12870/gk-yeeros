@@ -1,34 +1,267 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, Alert, ActivityIndicator, SafeAreaView, TextInput } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import { updateProfile } from 'firebase/auth';
+import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { sendReset } from '../../data/repositories/AuthRepo';
 
 export default function ProfileScreen() {
   const { user } = useAuth();
-  const name = user?.displayName || 'Guest';
+  const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [name, setName] = useState(user?.displayName || '');
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
+  const [nameMsg, setNameMsg] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [specialNote, setSpecialNote] = useState('');
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsMsg, setDetailsMsg] = useState<string | null>(null);
+
   const email = user?.email || '';
+  const joinDate = useMemo(() => (
+    user?.metadata?.creationTime
+      ? new Date(user.metadata.creationTime).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : 'Unknown'
+  ), [user?.metadata?.creationTime]);
+
+  const avatar = useMemo(() => {
+    if (imageError || !user?.photoURL) {
+      return { uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email || 'User')}&size=128&background=3b82f6&color=fff&bold=true` };
+    }
+    return { uri: user.photoURL };
+  }, [imageError, user?.photoURL, name, email]);
+
+  // Prefill additional fields from users/{uid}
+  React.useEffect(() => {
+    (async () => {
+      if (!user) return;
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        const data = snap.exists() ? snap.data() as any : null;
+        if (data) {
+          if (typeof data.phone === 'string') setPhone(data.phone);
+          if (typeof data.address === 'string') setAddress(data.address);
+          if (typeof data.photoURL === 'string') setPhotoUrl(data.photoURL);
+          if (typeof data.specialNote === 'string') setSpecialNote(data.specialNote);
+        }
+      } catch {}
+    })();
+  }, [user?.uid]);
+
+  const onSaveName = async () => {
+    if (!user) return;
+    const newName = name.trim();
+    if (newName.length === 0) {
+      Alert.alert('Name required', 'Please enter your name.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateProfile(user, { displayName: newName });
+      try {
+        await updateDoc(doc(db, 'users', user.uid), { displayName: newName, updatedAt: serverTimestamp() });
+      } catch {/* ignore if user doc missing */}
+      Alert.alert('Saved', 'Your name has been updated.');
+      setNameMsg('Name updated successfully.');
+    } catch (e: any) {
+      Alert.alert('Could not update name', e?.message || 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onSaveDetails = async () => {
+    if (!user) return;
+    setDetailsMsg(null);
+    setDetailsSaving(true);
+    try {
+      const update: any = {
+        updatedAt: serverTimestamp(),
+      };
+      if (phone.trim() !== '') update.phone = phone.trim();
+      if (address.trim() !== '') update.address = address.trim();
+      if (specialNote.trim() !== '') update.specialNote = specialNote.trim();
+      if (photoUrl.trim() !== '') update.photoURL = photoUrl.trim();
+
+      if (Object.keys(update).length > 1) {
+        await updateDoc(doc(db, 'users', user.uid), update);
+      }
+
+      if (photoUrl.trim() !== '') {
+        await updateProfile(user, { photoURL: photoUrl.trim() });
+      }
+
+      setDetailsMsg('Profile details updated successfully.');
+    } catch (e: any) {
+      Alert.alert('Could not save details', e?.message || 'Please try again.');
+    } finally {
+      setDetailsSaving(false);
+    }
+  };
+
+  const onResetPassword = async () => {
+    if (!email) {
+      Alert.alert('No email', 'This account has no email to reset.');
+      return;
+    }
+    setResetting(true);
+    try {
+      await sendReset(email);
+      Alert.alert('Reset link sent', 'Check your inbox to reset your password.');
+      setResetMsg(`Reset link sent to ${email}.`);
+    } catch (e: any) {
+      Alert.alert('Could not send reset', e?.message || 'Please try again.');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   return (
-    <View style={{ flex:1, backgroundColor:'#fff', padding:24 }}>
-      <View style={{ alignItems:'center', marginTop:20, marginBottom:24 }}>
-        <Image
-          source={{ uri: 'https://i.pravatar.cc/128' }}
-          style={{ width:96, height:96, borderRadius:48, marginBottom:12 }}
-        />
-        <Text style={{ fontSize:20, fontWeight:'800' }}>{name}</Text>
-        {!!email && <Text style={{ color:'#6b7280', marginTop:4 }}>{email}</Text>}
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={{ paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+          <Text style={{ fontSize: 28, fontWeight: '800', color: '#1f2937' }}>Profile</Text>
+        </View>
 
-      <View style={{ gap:12 }}>
-        <TouchableOpacity style={{ padding:16, borderRadius:12, backgroundColor:'#f3f4f6' }}>
-          <Text style={{ fontWeight:'700' }}>Edit profile (coming soon)</Text>
-        </TouchableOpacity>
+        {/* Profile Summary (keep as is) */}
+        <View style={{ alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 }}>
+          <Image source={avatar} onError={() => setImageError(true)} style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#f3f4f6', marginBottom: 12 }} />
+          <Text style={{ fontSize: 24, fontWeight: '800', color: '#1f2937' }}>{name || 'Guest User'}</Text>
+          {!!email && <Text style={{ fontSize: 16, color: '#6b7280' }}>{email}</Text>}
+          <View style={{ marginTop: 8, alignItems: 'center' }}>
+            <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1 }}>Member since</Text>
+            <Text style={{ fontSize: 14, color: '#6b7280', marginTop: 2 }}>{joinDate}</Text>
+          </View>
+        </View>
 
-        <TouchableOpacity onPress={() => auth.signOut()} style={{ padding:16, borderRadius:12, backgroundColor:'#ef4444' }}>
-          <Text style={{ color:'#fff', fontWeight:'800', textAlign:'center' }}>Logout</Text>
+        {/* Edit Name */}
+        <View style={{ marginHorizontal: 24, backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e5e7eb' }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Edit Name</Text>
+          {nameMsg ? (
+            <View style={{
+              backgroundColor: '#ecfdf5',
+              borderLeftWidth: 4,
+              borderLeftColor: '#10b981',
+              padding: 12,
+              borderRadius: 8,
+              marginBottom: 12
+            }}>
+              <Text style={{ color: '#065f46', fontWeight: '600' }}>{nameMsg}</Text>
+            </View>
+          ) : null}
+          <TextInput
+            placeholder="Your full name"
+            value={name}
+            onChangeText={setName}
+            style={{ borderWidth: 2, borderColor: '#f3f4f6', backgroundColor: '#fff', borderRadius: 12, padding: 14, fontSize: 16, color: '#111827', marginBottom: 12 }}
+            placeholderTextColor="#9ca3af"
+          />
+          <TouchableOpacity onPress={onSaveName} disabled={saving} style={{ backgroundColor: saving ? '#9ca3af' : '#111827', padding: 14, borderRadius: 12, alignItems: 'center' }}>
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Save</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {/* Password Reset */}
+        <View style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e5e7eb' }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 8 }}>Password</Text>
+          <Text style={{ color: '#6b7280', marginBottom: 12 }}>Send a password reset link to your email.</Text>
+          {resetMsg ? (
+            <View style={{
+              backgroundColor: '#ecfdf5',
+              borderLeftWidth: 4,
+              borderLeftColor: '#10b981',
+              padding: 12,
+              borderRadius: 8,
+              marginBottom: 12
+            }}>
+              <Text style={{ color: '#065f46', fontWeight: '600' }}>{resetMsg}</Text>
+            </View>
+          ) : null}
+          <TouchableOpacity onPress={onResetPassword} disabled={resetting} style={{ backgroundColor: resetting ? '#9ca3af' : '#111827', padding: 14, borderRadius: 12, alignItems: 'center' }}>
+            {resetting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Send reset link</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {/* Contact, Address, Photo, Allergies/Notes */}
+        <View style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e5e7eb' }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Contact & Preferences</Text>
+          {detailsMsg ? (
+            <View style={{
+              backgroundColor: '#ecfdf5',
+              borderLeftWidth: 4,
+              borderLeftColor: '#10b981',
+              padding: 12,
+              borderRadius: 8,
+              marginBottom: 12
+            }}>
+              <Text style={{ color: '#065f46', fontWeight: '600' }}>{detailsMsg}</Text>
+            </View>
+          ) : null}
+
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginLeft: 4 }}>Phone</Text>
+          <TextInput
+            placeholder="Your phone number"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            style={{ borderWidth: 2, borderColor: '#f3f4f6', backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, color: '#111827', marginBottom: 12 }}
+            placeholderTextColor="#9ca3af"
+          />
+
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginLeft: 4 }}>Address</Text>
+          <TextInput
+            placeholder="Your delivery address"
+            value={address}
+            onChangeText={setAddress}
+            multiline
+            style={{ borderWidth: 2, borderColor: '#f3f4f6', backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, color: '#111827', minHeight: 64, textAlignVertical: 'top', marginBottom: 12 }}
+            placeholderTextColor="#9ca3af"
+          />
+
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginLeft: 4 }}>Photo URL</Text>
+          <TextInput
+            placeholder="https://example.com/your-photo.jpg"
+            value={photoUrl}
+            onChangeText={setPhotoUrl}
+            autoCapitalize="none"
+            style={{ borderWidth: 2, borderColor: '#f3f4f6', backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, color: '#111827', marginBottom: 12 }}
+            placeholderTextColor="#9ca3af"
+          />
+
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginLeft: 4 }}>Allergies / Special Requests</Text>
+          <TextInput
+            placeholder="Any allergies or special requests"
+            value={specialNote}
+            onChangeText={setSpecialNote}
+            multiline
+            style={{ borderWidth: 2, borderColor: '#f3f4f6', backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, color: '#111827', minHeight: 72, textAlignVertical: 'top', marginBottom: 12 }}
+            placeholderTextColor="#9ca3af"
+          />
+
+          <TouchableOpacity onPress={onSaveDetails} disabled={detailsSaving} style={{ backgroundColor: detailsSaving ? '#9ca3af' : '#111827', padding: 14, borderRadius: 12, alignItems: 'center' }}>
+            {detailsSaving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Save details</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {/* Past Orders */}
+        <View style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e5e7eb' }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 8 }}>Past Orders</Text>
+          <Text style={{ color: '#6b7280' }}>You don’t have any past orders yet.</Text>
+        </View>
+
+        {/* Sign Out */}
+        <TouchableOpacity
+          onPress={async () => { try { await auth.signOut(); } catch (e) { Alert.alert('Error', 'Failed to sign out.'); } }}
+          style={{ marginHorizontal: 24, marginTop: 20, backgroundColor: '#ef4444', padding: 14, borderRadius: 12, alignItems: 'center' }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Sign Out</Text>
         </TouchableOpacity>
-      </View>
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-

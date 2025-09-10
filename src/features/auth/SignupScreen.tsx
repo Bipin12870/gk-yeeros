@@ -1,27 +1,47 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert, Linking } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { signUpEmail } from '../../data/repositories/AuthRepo';
 import { isValidEmail, isStrongPassword } from '../../utils/validation';
 import { friendlyAuthError } from '../../utils/firebaseErrors';
+import { getStore } from '../../data/repositories/StoreRepo';
 
 export default function SignupScreen({ navigation }: any) {
   const [name,setName] = useState('');
   const [email,setEmail] = useState('');
   const [password,setPassword] = useState('');
+  const [showPwd,setShowPwd] = useState(false);
+  const [agree,setAgree] = useState(false);
+  const [termsUrl,setTermsUrl] = useState<string | null>(null);
+
   const [busy,setBusy] = useState(false);
   const [err,setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Load Terms URL from Firestore /stores/MAIN
+    (async () => {
+      try {
+        const store = await getStore(); // defaults to "MAIN"
+        setTermsUrl(store?.legal?.termsUrl ?? null);
+      } catch {
+        // ignore – signup still works; just no link
+      }
+    })();
+  }, []);
 
   const onSignup = async () => {
     setErr(null);
     const em = email.trim();
     if (!isValidEmail(em)) return setErr('Please enter a valid email address.');
     if (!isStrongPassword(password)) return setErr('Password should be at least 6 characters.');
+    if (!agree) return setErr('You must agree to the Terms & Conditions to continue.');
 
     setBusy(true);
     try {
-      await signUpEmail({ name: name.trim(), email: em, password });
+      await signUpEmail({ name: name.trim(), email: em, password, acceptTerms: agree });
       Alert.alert('Verify your email', 'We sent you a verification link. Please verify to continue.');
-      // Optionally: navigation.replace('VerifyEmail');
+      // Take users directly to the verification screen
+      navigation.replace('VerifyEmail');
     } catch (e: any) {
       setErr(friendlyAuthError(e));
     } finally {
@@ -134,23 +154,60 @@ export default function SignupScreen({ navigation }: any) {
           }}>
             Password
           </Text>
-          <TextInput
-            placeholder="Create a secure password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            style={{ 
-              borderWidth: 2,
-              borderColor: '#f3f4f6',
-              backgroundColor: '#f9fafb',
-              borderRadius: 16,
-              padding: 16,
-              fontSize: 16,
-              color: '#111827'
-            }}
-            placeholderTextColor="#9ca3af"
-          />
+
+          {/* Password with show/hide toggle */}
+          <View style={{
+            borderWidth: 2,
+            borderColor: '#f3f4f6',
+            backgroundColor: '#f9fafb',
+            borderRadius: 16,
+            paddingHorizontal: 12,
+            flexDirection: 'row',
+            alignItems: 'center'
+          }}>
+            <TextInput
+              placeholder="Create a secure password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPwd}
+              style={{ 
+                flex: 1,
+                padding: 16,
+                fontSize: 16,
+                color: '#111827'
+              }}
+              placeholderTextColor="#9ca3af"
+            />
+            <TouchableOpacity onPress={() => setShowPwd(s => !s)} style={{ paddingHorizontal: 6, paddingVertical: 8 }}>
+              <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Terms & Conditions */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setAgree(a => !a)}
+          style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}
+        >
+          <View style={{
+            width: 20, height: 20, borderRadius: 6, borderWidth: 2,
+            borderColor: agree ? '#111827' : '#d1d5db',
+            backgroundColor: agree ? '#111827' : 'transparent',
+            alignItems: 'center', justifyContent: 'center'
+          }}>
+            {agree ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+          </View>
+          <Text style={{ color: '#374151', marginLeft: 8, flexShrink: 1 }}>
+            I agree to the{' '}
+            <Text
+              style={{ color: '#111827', fontWeight: '700', textDecorationLine: 'underline' }}
+              onPress={() => termsUrl && Linking.openURL(termsUrl)}
+            >
+              Terms & Conditions
+            </Text>
+          </Text>
+        </TouchableOpacity>
 
         {/* Error Message */}
         {err ? (
@@ -175,9 +232,9 @@ export default function SignupScreen({ navigation }: any) {
         {/* Sign Up Button */}
         <TouchableOpacity
           onPress={onSignup}
-          disabled={busy}
+          disabled={busy || !agree}
           style={{ 
-            backgroundColor: busy ? '#9ca3af' : '#111827',
+            backgroundColor: busy || !agree ? '#9ca3af' : '#111827',
             padding: 18,
             borderRadius: 16,
             alignItems: 'center',

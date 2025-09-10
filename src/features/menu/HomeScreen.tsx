@@ -1,11 +1,13 @@
-// App.tsx
+// HomeScreen.tsx (drop-in)
+// Fetches /stores/MAIN via StoreRepo and renders header/state with real data.
+// Requires: src/data/repositories/StoreRepo.ts and src/utils/openNow.ts from earlier steps.
+
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   SafeAreaView,
   View,
   Text,
   TextInput,
-  FlatList,
   Image,
   TouchableOpacity,
   Dimensions,
@@ -14,6 +16,7 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,53 +26,19 @@ import type { RootStackParamList } from "../../app/AppNavigator";
 import { useAuth } from "../auth/AuthProvider";
 import { auth } from "../../lib/firebase";
 
-const SHOP = {
-  name: "Gk's Yerros",
-  tagline: "Authentic Greek Street Food",
-  rating: 4.8,
-  deliveryTime: "20-35 min",
-  hours: { 
-    mon: ["10:00-20:00"], 
-    tue: ["10:00-20:00"], 
-    wed: ["10:00-20:00"], 
-    thu: ["10:00-22:00"], 
-    fri: ["10:00-23:00"], 
-    sat: ["11:00-23:00"], 
-    sun: ["11:00-21:00"] 
-  }
-};
+import { watchStore } from "../../data/repositories/StoreRepo";
+import type { StoreRecord } from "../../types/store";
+import { isOpenNow } from "../../utils/openNow";
 
-const CATEGORIES = [
-  { id: "all", label: "All", icon: "restaurant" },
-  { id: "yerros_classics", label: "Classics", icon: "star" },
-  { id: "wraps", label: "Wraps", icon: "nutrition" },
-  { id: "plates", label: "Plates", icon: "restaurant-menu" },
-];
-
-// Data source removed: no mock items. Replace with real data when available.
+// No mock items yet — real menu wiring comes later.
 const ITEMS: any[] = [];
-
-function isOpenNow(hours?: Record<string, string[]>) {
-  if (!hours) return false;
-  const now = new Date();
-  const dayKey = ["sun","mon","tue","wed","thu","fri","sat"][now.getDay()];
-  const spans = hours[dayKey] || [];
-  return spans.some(span => {
-    const [start, end] = span.split("-");
-    const [sh, sm] = start.split(":").map(Number);
-    const [eh, em] = end.split(":").map(Number);
-    const s = new Date(now); s.setHours(sh, sm ?? 0, 0, 0);
-    const e = new Date(now); e.setHours(eh, em ?? 0, 0, 0);
-    return now >= s && now <= e;
-  });
-}
 
 const screen = Dimensions.get("window").width;
 const GUTTER = 20;
 const CARD_W = Math.floor((screen - GUTTER * 2 - 16) / 2.3);
 const IMG_H = CARD_W; // Square cards
 
-export default function App() {
+export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -77,14 +46,25 @@ export default function App() {
   const [cartCount, setCartCount] = useState(0);
   const { user, verified } = useAuth();
   const isAuthed = !!user && !!verified;
-  
+
+  // Store data
+  const [store, setStore] = useState<StoreRecord | null>(null);
+  const [loadingStore, setLoadingStore] = useState(true);
+
+  useEffect(() => {
+    const unsub = watchStore("MAIN", (doc) => {
+      setStore(doc);
+      setLoadingStore(false);
+    }, () => setLoadingStore(false));
+    return unsub;
+  }, []);
+
   // Animation values
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-50)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Entrance animations
     Animated.parallel([
       Animated.timing(headerOpacity, {
         toValue: 1,
@@ -99,7 +79,6 @@ export default function App() {
       }),
     ]).start();
 
-    // Pulse animation for cart when items added
     if (cartCount > 0) {
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.2, duration: 200, useNativeDriver: true }),
@@ -108,7 +87,9 @@ export default function App() {
     }
   }, [cartCount]);
 
-  const open = useMemo(() => isOpenNow(SHOP.hours), []);
+  const open = useMemo(() => isOpenNow(store?.hours), [store?.hours]);
+
+  // Filter placeholders until items connect to Firestore
   const filtered = useMemo(() => {
     return ITEMS.filter((it) => {
       const byCat = category === "all" ? true : it.categoryId === category;
@@ -125,15 +106,32 @@ export default function App() {
   const scrollX2 = useRef(new Animated.Value(0)).current;
   const scrollX3 = useRef(new Animated.Value(0)).current;
 
-  const addToCart = () => {
-    setCartCount(prev => prev + 1);
-  };
+  const addToCart = () => setCartCount(prev => prev + 1);
+
+  if (loadingStore) {
+    return (
+      <SafeAreaView style={{ flex:1, alignItems:"center", justifyContent:"center", backgroundColor:"#F8FAFC" }}>
+        <ActivityIndicator />
+      </SafeAreaView>
+    );
+  }
+
+  if (!store) {
+    return (
+      <SafeAreaView style={{ flex:1, alignItems:"center", justifyContent:"center", padding:20 }}>
+        <Text style={{ fontWeight:"800", fontSize:18 }}>Store not found</Text>
+        <Text style={{ color:"#6b7280", marginTop:8, textAlign:"center" }}>
+          Ensure /stores/MAIN exists and rules allow reads.
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
       
-      {/* Enhanced Gradient Header */}
+      {/* Header */}
       <Animated.View style={{ opacity: headerOpacity }}>
         <LinearGradient
           colors={["#6366F1", "#8B5CF6", "#EC4899"]}
@@ -151,19 +149,27 @@ export default function App() {
             {/* Shop Info Row */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: "white", fontWeight: "900", fontSize: 24 }}>{SHOP.name}</Text>
-                <Text style={{ color: "#E0E7FF", fontSize: 14, marginTop: 2 }}>{SHOP.tagline}</Text>
+                <Text style={{ color: "white", fontWeight: "900", fontSize: 24 }}>
+                  {store.name}
+                </Text>
+                {/* Optional tagline: use announcement or address as subtitle */}
+                <Text style={{ color: "#E0E7FF", fontSize: 14, marginTop: 2 }}>
+                  {store.address || "Authentic Greek Street Food"}
+                </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
                   <Badge text={open ? "Open now" : "Closed"} tone={open ? "green" : "red"} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Ionicons name="star" size={14} color="#FCD34D" />
-                    <Text style={{ color: "white", fontWeight: "600", fontSize: 12 }}>{SHOP.rating}</Text>
-                  </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Ionicons name="time" size={14} color="#E0E7FF" />
-                    <Text style={{ color: "#E0E7FF", fontSize: 12 }}>{SHOP.deliveryTime}</Text>
+                    <Text style={{ color: "#E0E7FF", fontSize: 12 }}>
+                      Pickup {store.pickup?.minLeadMinutes ?? 10}-{store.pickup?.maxLeadMinutes ?? 25} min
+                    </Text>
                   </View>
                 </View>
+                {!!store.announcement && (
+                  <Text style={{ color:"#fde68a", marginTop:6, fontWeight:"600" }}>
+                    • {store.announcement}
+                  </Text>
+                )}
               </View>
               
               {/* Action Buttons */}
@@ -192,11 +198,10 @@ export default function App() {
                     />
                   </>
                 )}
-
               </View>
             </View>
 
-            {/* Enhanced Search + Filter */}
+            {/* Search + Filter */}
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
               <View style={[enhancedGlass(), { flex: 1 }]}>
                 <Ionicons name="search" size={18} color="#6B7280" style={{ marginRight: 10 }} />
@@ -225,25 +230,15 @@ export default function App() {
               </TouchableOpacity>
             </View>
 
-            {/* Enhanced Filter Chips */}
+            {/* Filter Chips (static for now) */}
             {showFilters && (
-              <Animated.View
-                style={{
-                  marginTop: 16,
-                  opacity: showFilters ? 1 : 0,
-                }}
-              >
+              <Animated.View style={{ marginTop: 16, opacity: showFilters ? 1 : 0 }}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: "row", gap: 10, paddingRight: 20 }}>
-                    {CATEGORIES.map(c => (
-                      <EnhancedChip 
-                        key={c.id} 
-                        label={c.label} 
-                        icon={c.icon}
-                        active={category === c.id} 
-                        onPress={() => setCategory(c.id)} 
-                      />
-                    ))}
+                    <EnhancedChip label="All" icon="restaurant" active={category === "all"} onPress={() => setCategory("all")} />
+                    <EnhancedChip label="Classics" icon="star" active={category === "yerros_classics"} onPress={() => setCategory("yerros_classics")} />
+                    <EnhancedChip label="Wraps" icon="nutrition" active={category === "wraps"} onPress={() => setCategory("wraps")} />
+                    <EnhancedChip label="Plates" icon="restaurant-menu" active={category === "plates"} onPress={() => setCategory("plates")} />
                   </View>
                 </ScrollView>
               </Animated.View>
@@ -252,55 +247,90 @@ export default function App() {
         </LinearGradient>
       </Animated.View>
 
-      {/* Enhanced Body */}
+      {/* Body (placeholder until menu wire-up) */}
       <ScrollView style={{ flex: 1, backgroundColor: "#F8FAFC" }} showsVerticalScrollIndicator={false}>
-        {classics.length > 0 && (
-          <Section title="🌟 Yerros Classics" subtitle="Our most beloved dishes">
-            <CarouselSection items={classics} scrollX={scrollX1} onAddToCart={addToCart} />
-          </Section>
-        )}
-
-        {wraps.length > 0 && (
-          <Section title="🌯 Fresh Wraps" subtitle="Perfectly wrapped flavors">
-            <CarouselSection items={wraps} scrollX={scrollX2} onAddToCart={addToCart} />
-          </Section>
-        )}
-
-        {plates.length > 0 && (
-          <Section title="🍽️ Hearty Plates" subtitle="Complete meal experiences">
-            <CarouselSection items={plates} scrollX={scrollX3} onAddToCart={addToCart} />
-          </Section>
-        )}
-
-        {filtered.length === 0 && (
+        {classics.length + wraps.length + plates.length > 0 ? (
+          <>
+            {classics.length > 0 && (
+              <Section title="🌟 Yerros Classics" subtitle="Our most beloved dishes">
+                <CarouselSection items={classics} scrollX={scrollX1} onAddToCart={addToCart} />
+              </Section>
+            )}
+            {wraps.length > 0 && (
+              <Section title="🌯 Fresh Wraps" subtitle="Perfectly wrapped flavors">
+                <CarouselSection items={wraps} scrollX={scrollX2} onAddToCart={addToCart} />
+              </Section>
+            )}
+            {plates.length > 0 && (
+              <Section title="🍽️ Hearty Plates" subtitle="Complete meal experiences">
+                <CarouselSection items={plates} scrollX={scrollX3} onAddToCart={addToCart} />
+              </Section>
+            )}
+          </>
+        ) : (
           <View style={{ alignItems: "center", paddingVertical: 60 }}>
             <Ionicons name="search" size={48} color="#9CA3AF" />
-            <Text style={{ color: "#6B7280", fontSize: 16, marginTop: 12 }}>No items found</Text>
-            <Text style={{ color: "#9CA3AF", fontSize: 14, marginTop: 4 }}>Try adjusting your search or filters</Text>
+            <Text style={{ color: "#6B7280", fontSize: 16, marginTop: 12 }}>
+              Menu coming soon
+            </Text>
+            <Text style={{ color: "#9CA3AF", fontSize: 14, marginTop: 4, textAlign:"center", paddingHorizontal:24 }}>
+              We’ve connected the store details. Next we’ll fetch real menu items.
+            </Text>
           </View>
         )}
       </ScrollView>
 
-      {/* Compact Footer */}
-      <View style={{ 
-        borderTopWidth: 1, 
-        borderColor: "#E5E7EB", 
-        backgroundColor: "white",
-        paddingVertical: 12,
-        paddingHorizontal: 20
-      }}>
+      {/* Footer */}
+        <View style={{ 
+          borderTopWidth: 1, 
+          borderColor: "#E5E7EB", 
+          backgroundColor: "white",
+          paddingVertical: 12,
+          paddingHorizontal: 20
+        }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ color: "#6B7280", fontSize: 12 }}>© {new Date().getFullYear()} Gk's Yerros</Text>
-          <View style={{ flexDirection: "row", gap: 16 }}>
-            <TouchableOpacity onPress={() => Linking.openURL("https://instagram.com")}>
-              <Ionicons name="logo-instagram" size={18} color="#E91E63" />
+          <Text style={{ color: "#6B7280", fontSize: 12 }}>
+            © {new Date().getFullYear()} {store.name}
+          </Text>
+
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {/* Our Team button */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Team')}
+              style={{ 
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 6,
+                paddingHorizontal: 10,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "#D1D5DB",
+                backgroundColor: "#F9FAFB",
+                marginRight: 12
+              }}
+            >
+              <Ionicons name="people-outline" size={16} color="#374151" />
+              <Text style={{ marginLeft: 6, color: "#374151", fontWeight: "700", fontSize: 12 }}>
+                Our Team
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => Linking.openURL("https://facebook.com")}>
-              <Ionicons name="logo-facebook" size={18} color="#1877F2" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => Linking.openURL("https://twitter.com")}>
-              <Ionicons name="logo-twitter" size={18} color="#1DA1F2" />
-            </TouchableOpacity>
+
+            {/* Socials */}
+            {!!store.social?.instagram && (
+              <TouchableOpacity onPress={() => Linking.openURL(store.social!.instagram!)} style={{ marginHorizontal: 8 }}>
+                <Ionicons name="logo-instagram" size={18} color="#E91E63" />
+              </TouchableOpacity>
+            )}
+            {!!store.social?.facebook && (
+              <TouchableOpacity onPress={() => Linking.openURL(store.social!.facebook!)} style={{ marginHorizontal: 8 }}>
+                <Ionicons name="logo-facebook" size={18} color="#1877F2" />
+              </TouchableOpacity>
+            )}
+            {!!store.social?.tiktok && store.social?.tiktok !== "" && (
+              <TouchableOpacity onPress={() => Linking.openURL(store.social!.tiktok!)} style={{ marginLeft: 8 }}>
+                <Ionicons name="logo-tiktok" size={18} color="#111827" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -308,7 +338,7 @@ export default function App() {
   );
 }
 
-/* ---------- Enhanced Components ---------- */
+/* ---------- UI Bits ---------- */
 
 function Badge({ text, tone }: { text: string; tone: "green" | "red" }) {
   const colors = {
