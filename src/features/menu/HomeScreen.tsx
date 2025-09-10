@@ -1,0 +1,522 @@
+// App.tsx
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  Dimensions,
+  Linking,
+  Animated,
+  Platform,
+  StatusBar,
+  ScrollView,
+} from "react-native";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../app/AppNavigator";
+import { useAuth } from "../auth/AuthProvider";
+import { auth } from "../../lib/firebase";
+
+const SHOP = {
+  name: "Gk's Yerros",
+  tagline: "Authentic Greek Street Food",
+  rating: 4.8,
+  deliveryTime: "20-35 min",
+  hours: { 
+    mon: ["10:00-20:00"], 
+    tue: ["10:00-20:00"], 
+    wed: ["10:00-20:00"], 
+    thu: ["10:00-22:00"], 
+    fri: ["10:00-23:00"], 
+    sat: ["11:00-23:00"], 
+    sun: ["11:00-21:00"] 
+  }
+};
+
+const CATEGORIES = [
+  { id: "all", label: "All", icon: "restaurant" },
+  { id: "yerros_classics", label: "Classics", icon: "star" },
+  { id: "wraps", label: "Wraps", icon: "nutrition" },
+  { id: "plates", label: "Plates", icon: "restaurant-menu" },
+];
+
+// Data source removed: no mock items. Replace with real data when available.
+const ITEMS: any[] = [];
+
+function isOpenNow(hours?: Record<string, string[]>) {
+  if (!hours) return false;
+  const now = new Date();
+  const dayKey = ["sun","mon","tue","wed","thu","fri","sat"][now.getDay()];
+  const spans = hours[dayKey] || [];
+  return spans.some(span => {
+    const [start, end] = span.split("-");
+    const [sh, sm] = start.split(":").map(Number);
+    const [eh, em] = end.split(":").map(Number);
+    const s = new Date(now); s.setHours(sh, sm ?? 0, 0, 0);
+    const e = new Date(now); e.setHours(eh, em ?? 0, 0, 0);
+    return now >= s && now <= e;
+  });
+}
+
+const screen = Dimensions.get("window").width;
+const GUTTER = 20;
+const CARD_W = Math.floor((screen - GUTTER * 2 - 16) / 2.3);
+const IMG_H = CARD_W; // Square cards
+
+export default function App() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+  const { user, verified } = useAuth();
+  const isAuthed = !!user && !!verified;
+  
+  // Animation values
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(-50)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Pulse animation for cart when items added
+    if (cartCount > 0) {
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [cartCount]);
+
+  const open = useMemo(() => isOpenNow(SHOP.hours), []);
+  const filtered = useMemo(() => {
+    return ITEMS.filter((it) => {
+      const byCat = category === "all" ? true : it.categoryId === category;
+      const bySearch = query.trim() ? it.name.toLowerCase().includes(query.toLowerCase()) : true;
+      return byCat && bySearch;
+    });
+  }, [query, category]);
+
+  const classics = filtered.filter(i => i.categoryId === "yerros_classics");
+  const wraps = filtered.filter(i => i.categoryId === "wraps");
+  const plates = filtered.filter(i => i.categoryId === "plates");
+
+  const scrollX1 = useRef(new Animated.Value(0)).current;
+  const scrollX2 = useRef(new Animated.Value(0)).current;
+  const scrollX3 = useRef(new Animated.Value(0)).current;
+
+  const addToCart = () => {
+    setCartCount(prev => prev + 1);
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      
+      {/* Enhanced Gradient Header */}
+      <Animated.View style={{ opacity: headerOpacity }}>
+        <LinearGradient
+          colors={["#6366F1", "#8B5CF6", "#EC4899"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ paddingBottom: 16, borderBottomWidth: 1, borderColor: "#C084FC" }}
+        >
+          <Animated.View 
+            style={{ 
+              paddingHorizontal: 20, 
+              paddingTop: Platform.OS === "android" ? 25 : 10,
+              transform: [{ translateY: slideAnim }]
+            }}
+          >
+            {/* Shop Info Row */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "white", fontWeight: "900", fontSize: 24 }}>{SHOP.name}</Text>
+                <Text style={{ color: "#E0E7FF", fontSize: 14, marginTop: 2 }}>{SHOP.tagline}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+                  <Badge text={open ? "Open now" : "Closed"} tone={open ? "green" : "red"} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Ionicons name="star" size={14} color="#FCD34D" />
+                    <Text style={{ color: "white", fontWeight: "600", fontSize: 12 }}>{SHOP.rating}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Ionicons name="time" size={14} color="#E0E7FF" />
+                    <Text style={{ color: "#E0E7FF", fontSize: 12 }}>{SHOP.deliveryTime}</Text>
+                  </View>
+                </View>
+              </View>
+              
+              {/* Action Buttons */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                  <GlassButton 
+                    icon={<Ionicons name="cart-outline" size={18} color="#E2E8F0" />} 
+                    label="Cart"
+                    badge={cartCount > 0 ? cartCount.toString() : undefined}
+                    onPress={() => navigation.navigate('Cart')}
+                  />
+                </Animated.View>
+                <GlassButton icon={<Ionicons name="heart-outline" size={18} color="#E2E8F0" />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
+                {isAuthed ? (
+                  <>
+                    <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color="#E2E8F0" />} label="Profile" onPress={() => navigation.navigate('Profile')} />
+                    <GlassButton icon={<Ionicons name="log-out-outline" size={18} color="#E2E8F0" />} label="Logout" onPress={() => auth.signOut()} />
+                  </>
+                ) : (
+                  <>
+                    <GlassButton icon={<Ionicons name="person-outline" size={18} color="#E2E8F0" />} label="Login" onPress={() => navigation.navigate('Login')} />
+                    <GlassButton 
+                      icon={<Ionicons name="person-outline" size={18} color="#E2E8F0" />} 
+                      label="Sign Up" 
+                      onPress={() => navigation.navigate('Signup')}
+                    />
+                  </>
+                )}
+
+              </View>
+            </View>
+
+            {/* Enhanced Search + Filter */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+              <View style={[enhancedGlass(), { flex: 1 }]}>
+                <Ionicons name="search" size={18} color="#6B7280" style={{ marginRight: 10 }} />
+                <TextInput
+                  placeholder="Search delicious food..."
+                  placeholderTextColor="#6B7280"
+                  value={query}
+                  onChangeText={setQuery}
+                  style={{ flex: 1, color: '#111827', fontSize: 15 }}
+                />
+                {query.length > 0 && (
+                  <TouchableOpacity onPress={() => setQuery("")}>
+                    <Ionicons name="close-circle" size={18} color="#6B7280" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowFilters(s => !s)}
+                style={[enhancedGlass({ paddingHorizontal: 16 }), { 
+                  backgroundColor: showFilters ? 'rgba(79, 70, 229, 0.15)' : 'rgba(255, 255, 255, 0.9)',
+                  borderColor: showFilters ? '#4F46E5' : '#D1D5DB'
+                }]}
+              >
+                <MaterialIcons name="tune" size={18} color={showFilters ? "#4F46E5" : "#6B7280"} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Enhanced Filter Chips */}
+            {showFilters && (
+              <Animated.View
+                style={{
+                  marginTop: 16,
+                  opacity: showFilters ? 1 : 0,
+                }}
+              >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: "row", gap: 10, paddingRight: 20 }}>
+                    {CATEGORIES.map(c => (
+                      <EnhancedChip 
+                        key={c.id} 
+                        label={c.label} 
+                        icon={c.icon}
+                        active={category === c.id} 
+                        onPress={() => setCategory(c.id)} 
+                      />
+                    ))}
+                  </View>
+                </ScrollView>
+              </Animated.View>
+            )}
+          </Animated.View>
+        </LinearGradient>
+      </Animated.View>
+
+      {/* Enhanced Body */}
+      <ScrollView style={{ flex: 1, backgroundColor: "#F8FAFC" }} showsVerticalScrollIndicator={false}>
+        {classics.length > 0 && (
+          <Section title="🌟 Yerros Classics" subtitle="Our most beloved dishes">
+            <CarouselSection items={classics} scrollX={scrollX1} onAddToCart={addToCart} />
+          </Section>
+        )}
+
+        {wraps.length > 0 && (
+          <Section title="🌯 Fresh Wraps" subtitle="Perfectly wrapped flavors">
+            <CarouselSection items={wraps} scrollX={scrollX2} onAddToCart={addToCart} />
+          </Section>
+        )}
+
+        {plates.length > 0 && (
+          <Section title="🍽️ Hearty Plates" subtitle="Complete meal experiences">
+            <CarouselSection items={plates} scrollX={scrollX3} onAddToCart={addToCart} />
+          </Section>
+        )}
+
+        {filtered.length === 0 && (
+          <View style={{ alignItems: "center", paddingVertical: 60 }}>
+            <Ionicons name="search" size={48} color="#9CA3AF" />
+            <Text style={{ color: "#6B7280", fontSize: 16, marginTop: 12 }}>No items found</Text>
+            <Text style={{ color: "#9CA3AF", fontSize: 14, marginTop: 4 }}>Try adjusting your search or filters</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Compact Footer */}
+      <View style={{ 
+        borderTopWidth: 1, 
+        borderColor: "#E5E7EB", 
+        backgroundColor: "white",
+        paddingVertical: 12,
+        paddingHorizontal: 20
+      }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={{ color: "#6B7280", fontSize: 12 }}>© {new Date().getFullYear()} Gk's Yerros</Text>
+          <View style={{ flexDirection: "row", gap: 16 }}>
+            <TouchableOpacity onPress={() => Linking.openURL("https://instagram.com")}>
+              <Ionicons name="logo-instagram" size={18} color="#E91E63" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => Linking.openURL("https://facebook.com")}>
+              <Ionicons name="logo-facebook" size={18} color="#1877F2" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => Linking.openURL("https://twitter.com")}>
+              <Ionicons name="logo-twitter" size={18} color="#1DA1F2" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/* ---------- Enhanced Components ---------- */
+
+function Badge({ text, tone }: { text: string; tone: "green" | "red" }) {
+  const colors = {
+    green: { bg: "#10B981", fg: "white", border: "#059669" },
+    red: { bg: "#EF4444", fg: "white", border: "#DC2626" }
+  };
+  const { bg, fg, border } = colors[tone];
+  
+  return (
+    <View style={{
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      backgroundColor: bg,
+      borderWidth: 1,
+      borderColor: border,
+    }}>
+      <Text style={{ color: fg, fontWeight: "700", fontSize: 11 }}>{text}</Text>
+    </View>
+  );
+}
+
+function GlassButton({ icon, label, badge, onPress }: { icon: React.ReactNode; label: string; badge?: string; onPress?: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={{
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.3)",
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      position: "relative",
+    }}>
+      {icon}
+      <Text style={{ color: "white", fontWeight: "600", fontSize: 12 }}>{label}</Text>
+      {badge && (
+        <View style={{
+          position: "absolute",
+          top: -4,
+          right: -4,
+          backgroundColor: "#EF4444",
+          borderRadius: 10,
+          minWidth: 18,
+          height: 18,
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <Text style={{ color: "white", fontSize: 10, fontWeight: "800" }}>{badge}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function EnhancedChip({ label, icon, active, onPress }: { 
+  label: string; 
+  icon: string; 
+  active?: boolean; 
+  onPress?: () => void 
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1.5,
+        borderColor: active ? "#6366F1" : "#D1D5DB",
+        backgroundColor: active ? "rgba(99, 102, 241, 0.15)" : "rgba(255, 255, 255, 0.9)",
+      }}
+    >
+      <MaterialIcons name={icon as any} size={16} color={active ? "#6366F1" : "#6B7280"} />
+      <Text style={{ color: active ? "#4F46E5" : "#374151", fontWeight: "700", fontSize: 13 }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function enhancedGlass(extra?: { paddingHorizontal?: number }) {
+  return {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: extra?.paddingHorizontal ?? 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  };
+}
+
+function CarouselSection({ items, scrollX, onAddToCart }: { 
+  items: any[]; 
+  scrollX: Animated.Value; 
+  onAddToCart: () => void 
+}) {
+  return (
+    <Animated.FlatList
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      data={items}
+      keyExtractor={(it) => it.id}
+      contentContainerStyle={{ paddingHorizontal: 20 }}
+      ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+      onScroll={Animated.event(
+        [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+        { useNativeDriver: true }
+      )}
+      renderItem={({ item, index }) => (
+        <EnhancedCard
+          item={item}
+          index={index}
+          scrollX={scrollX}
+          onAddToCart={onAddToCart}
+        />
+      )}
+    />
+  );
+}
+
+function EnhancedCard({ item, index, scrollX, onAddToCart }: { 
+  item: any; 
+  index: number; 
+  scrollX: Animated.Value;
+  onAddToCart: () => void;
+}) {
+  const inputRange = [(index - 1) * (CARD_W + 16), index * (CARD_W + 16), (index + 1) * (CARD_W + 16)];
+  const scale = scrollX.interpolate({ inputRange, outputRange: [0.9, 1, 0.9], extrapolate: "clamp" });
+  const opacity = scrollX.interpolate({ inputRange, outputRange: [0.8, 1, 0.8], extrapolate: "clamp" });
+
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  return (
+    <Animated.View style={[{
+      width: CARD_W,
+      borderRadius: 16,
+      overflow: "hidden",
+      backgroundColor: "white",
+      borderWidth: 1,
+      borderColor: "#E5E7EB",
+      opacity,
+      transform: [{ scale }],
+      shadowColor: "#000",
+      shadowOpacity: 0.1,
+      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 12,
+      elevation: 4,
+    }]}>
+      {/* Square Image */}
+      <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', item)}>
+        <Image source={{ uri: item.img }} style={{ width: "100%", height: IMG_H }} resizeMode="cover" />
+      </TouchableOpacity>
+
+      {/* Simple Content */}
+      <View style={{ padding: 12 }}>
+        <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', item)}>
+          <Text numberOfLines={1} style={{ color: "#111827", fontWeight: "700", fontSize: 14 }}>
+            {item.name}
+          </Text>
+        </TouchableOpacity>
+        
+        <Text style={{ color: "#6366F1", fontWeight: "900", fontSize: 16, marginTop: 8 }}>
+          ${item.price.toFixed(2)}
+        </Text>
+
+        {/* Add Button */}
+        <TouchableOpacity
+          onPress={onAddToCart}
+          style={{
+            marginTop: 10,
+            backgroundColor: "#6366F1",
+            paddingVertical: 10,
+            borderRadius: 12,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "white", fontWeight: "700", fontSize: 13 }}>Add to Cart</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+}
+
+function Section({ title, subtitle, children }: { 
+  title: string; 
+  subtitle?: string; 
+  children: React.ReactNode 
+}) {
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+        <Text style={{ color: "#111827", fontWeight: "800", fontSize: 20 }}>{title}</Text>
+        {subtitle && (
+          <Text style={{ color: "#6B7280", fontSize: 14, marginTop: 4 }}>{subtitle}</Text>
+        )}
+      </View>
+      {children}
+    </View>
+  );
+}
