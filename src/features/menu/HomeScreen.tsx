@@ -24,14 +24,15 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../app/AppNavigator";
 import { useAuth } from "../auth/AuthProvider";
+import { useCart } from "../../state/stores/useCartStore";
 import { auth } from "../../lib/firebase";
 
 import { watchStore } from "../../data/repositories/StoreRepo";
+import { watchItems, type ItemRecord } from "../../data/repositories/ItemRepo";
 import type { StoreRecord } from "../../types/store";
 import { isOpenNow } from "../../utils/openNow";
 
-// No mock items yet — real menu wiring comes later.
-const ITEMS: any[] = [];
+// Items pulled from Firestore
 
 const screen = Dimensions.get("window").width;
 const GUTTER = 20;
@@ -43,19 +44,29 @@ export default function HomeScreen() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
+  const { totalCount } = useCart();
   const { user, verified } = useAuth();
   const isAuthed = !!user && !!verified;
 
   // Store data
   const [store, setStore] = useState<StoreRecord | null>(null);
   const [loadingStore, setLoadingStore] = useState(true);
+  const [items, setItems] = useState<ItemRecord[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
 
   useEffect(() => {
     const unsub = watchStore("MAIN", (doc) => {
       setStore(doc);
       setLoadingStore(false);
     }, () => setLoadingStore(false));
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = watchItems('MAIN', (list) => {
+      setItems(list);
+      setLoadingItems(false);
+    }, () => setLoadingItems(false));
     return unsub;
   }, []);
 
@@ -79,24 +90,24 @@ export default function HomeScreen() {
       }),
     ]).start();
 
-    if (cartCount > 0) {
+    if (totalCount > 0) {
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.2, duration: 200, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
       ]).start();
     }
-  }, [cartCount]);
+  }, [totalCount]);
 
   const open = useMemo(() => isOpenNow(store?.hours), [store?.hours]);
 
   // Filter placeholders until items connect to Firestore
   const filtered = useMemo(() => {
-    return ITEMS.filter((it) => {
+    return items.filter((it) => {
       const byCat = category === "all" ? true : it.categoryId === category;
       const bySearch = query.trim() ? it.name.toLowerCase().includes(query.toLowerCase()) : true;
       return byCat && bySearch;
     });
-  }, [query, category]);
+  }, [items, query, category]);
 
   const classics = filtered.filter(i => i.categoryId === "yerros_classics");
   const wraps = filtered.filter(i => i.categoryId === "wraps");
@@ -106,9 +117,12 @@ export default function HomeScreen() {
   const scrollX2 = useRef(new Animated.Value(0)).current;
   const scrollX3 = useRef(new Animated.Value(0)).current;
 
-  const addToCart = () => setCartCount(prev => prev + 1);
+  const addToCart = (item?: any) => {
+    // Navigate to detail for customization before adding
+    navigation.navigate('ItemDetail', item);
+  };
 
-  if (loadingStore) {
+  if (loadingStore || loadingItems) {
     return (
       <SafeAreaView style={{ flex:1, alignItems:"center", justifyContent:"center", backgroundColor:"#F8FAFC" }}>
         <ActivityIndicator />
@@ -178,7 +192,7 @@ export default function HomeScreen() {
                   <GlassButton 
                     icon={<Ionicons name="cart-outline" size={18} color="#E2E8F0" />} 
                     label="Cart"
-                    badge={cartCount > 0 ? cartCount.toString() : undefined}
+                    badge={totalCount > 0 ? totalCount.toString() : undefined}
                     onPress={() => navigation.navigate('Cart')}
                   />
                 </Animated.View>
@@ -444,7 +458,7 @@ function enhancedGlass(extra?: { paddingHorizontal?: number }) {
 function CarouselSection({ items, scrollX, onAddToCart }: { 
   items: any[]; 
   scrollX: Animated.Value; 
-  onAddToCart: () => void 
+  onAddToCart: (item?: any) => void 
 }) {
   return (
     <Animated.FlatList
@@ -474,7 +488,7 @@ function EnhancedCard({ item, index, scrollX, onAddToCart }: {
   item: any; 
   index: number; 
   scrollX: Animated.Value;
-  onAddToCart: () => void;
+  onAddToCart: (item?: any) => void;
 }) {
   const inputRange = [(index - 1) * (CARD_W + 16), index * (CARD_W + 16), (index + 1) * (CARD_W + 16)];
   const scale = scrollX.interpolate({ inputRange, outputRange: [0.9, 1, 0.9], extrapolate: "clamp" });
@@ -517,7 +531,7 @@ function EnhancedCard({ item, index, scrollX, onAddToCart }: {
 
         {/* Add Button */}
         <TouchableOpacity
-          onPress={onAddToCart}
+          onPress={() => onAddToCart(item)}
           style={{
             marginTop: 10,
             backgroundColor: "#6366F1",

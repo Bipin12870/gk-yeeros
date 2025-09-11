@@ -18,6 +18,12 @@ async function main() {
     phone: "+61 400 000 000",
     address: "123 Example St, Sydney NSW",
     announcement: "",
+    pickup: {
+      enabled: true,
+      minLeadMinutes: 10,
+      maxLeadMinutes: 25,
+      bufferMinutes: 5,
+    },
     hours: {
       mon: ["10:00-20:00"],
       tue: ["10:00-20:00"],

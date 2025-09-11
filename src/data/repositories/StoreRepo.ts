@@ -1,6 +1,6 @@
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import type { StoreDoc, StoreRecord } from "../../types/store";
+import type { StoreDoc, StoreRecord, PickupConfig } from "../../types/store";
 
 const COLLECTION = "stores";
 
@@ -37,4 +37,18 @@ export function watchStore(
       if (onError) onError(err);
     }
   );
+}
+
+/** Update pickup timing config fields under stores/{id}.pickup */
+export async function updatePickup(
+  storeId: string = "MAIN",
+  patch: Partial<PickupConfig>
+) {
+  const payload: Record<string, any> = {};
+  if (patch.enabled !== undefined) payload["pickup.enabled"] = patch.enabled;
+  if (patch.minLeadMinutes !== undefined) payload["pickup.minLeadMinutes"] = patch.minLeadMinutes;
+  if (patch.maxLeadMinutes !== undefined) payload["pickup.maxLeadMinutes"] = patch.maxLeadMinutes;
+  if (patch.bufferMinutes !== undefined) payload["pickup.bufferMinutes"] = patch.bufferMinutes;
+  const ref = doc(db, COLLECTION, storeId);
+  await updateDoc(ref, payload);
 }
