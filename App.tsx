@@ -4,6 +4,7 @@ import React from 'react';
 import { AuthProvider } from './src/features/auth/AuthProvider';
 import AppNavigator from './src/app/AppNavigator';
 import { CartProvider } from './src/state/stores/useCartStore';
+import { ToastProvider } from './src/state/ui/ToastProvider';
 import { FavoritesProvider } from './src/state/stores/useFavoritesStore';
 
 export default function App() {
@@ -11,7 +12,9 @@ export default function App() {
     <AuthProvider>
       <FavoritesProvider>
         <CartProvider>
-          <AppNavigator />
+          <ToastProvider>
+            <AppNavigator />
+          </ToastProvider>
         </CartProvider>
       </FavoritesProvider>
     </AuthProvider>

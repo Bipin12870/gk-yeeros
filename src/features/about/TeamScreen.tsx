@@ -61,9 +61,7 @@ export default function TeamScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 6 }}>
           <Ionicons name="chevron-back" size={22} color="#111827" />
         </TouchableOpacity>
-        <Text style={{ fontSize: 22, fontWeight: "900", color: "#111827" }}>
-          Our Team
-        </Text>
+        <Text style={{ fontSize: 22, fontWeight: "900", color: "#111827" }}>Our Team</Text>
       </View>
 
       {staff.length === 0 ? (

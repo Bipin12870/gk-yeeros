@@ -15,8 +15,10 @@ async function seed() {
 
   // 1) Categories
   const categories = [
-    { id: 'yerros_classics', name: 'Yerros Classics', displayOrder: 10, active: true },
-    { id: 'yerros_classics_kids', name: 'Yerros Classics (Kids)', displayOrder: 20, active: true },
+    { id: 'yerros_classics', name: 'Yerros Classics', displayOrder: 10, active: true, groupId: 'regular', groupName: 'Yerros Regular' },
+    { id: 'yerros_classics_kids', name: 'Yerros Classics (Kids)', displayOrder: 20, active: true, groupId: 'kids', groupName: 'Yerros Kids' },
+    { id: 'yerros_traditional', name: 'Yerros Traditional', displayOrder: 30, active: true, groupId: 'regular', groupName: 'Yerros Regular' },
+    { id: 'yerros_traditional_kids', name: 'Yerros Traditional (Kids)', displayOrder: 40, active: true, groupId: 'kids', groupName: 'Yerros Kids' },
   ];
 
   for (const cat of categories) {
@@ -24,6 +26,8 @@ async function seed() {
       name: cat.name,
       displayOrder: cat.displayOrder,
       active: cat.active,
+      groupId: cat.groupId,
+      groupName: cat.groupName,
       updatedAt: serverTimestamp(),
     }, { merge: true });
   }
@@ -35,7 +39,7 @@ async function seed() {
       name: 'Salads',
       required: false,
       min: 0,
-      max: 4,
+      max: 6,
       multi: true,
       isVariantGroup: false,
       options: [
@@ -43,6 +47,7 @@ async function seed() {
         { id: 'tomato', name: 'Tomato', priceDelta: 0, defaultSelected: true },
         { id: 'onion', name: 'Onion', priceDelta: 0, defaultSelected: true },
         { id: 'tabouli', name: 'Tabouli', priceDelta: 0 },
+        { id: 'hot_chips', name: 'Hot Chips (in wrap)', priceDelta: 0 },
       ],
     },
     {
@@ -182,6 +187,7 @@ async function seed() {
       active: true,
       displayOrder: 10,
       modifierGroupIds: ['salads','sauces','meats','add_ons','bread','sides','drinks','combo'],
+      hiddenOptions: { salads: ['hot_chips'] },
     },
     {
       id: 'yerros_classic_kids',
@@ -192,6 +198,29 @@ async function seed() {
       basePrice: 12.0,
       active: true,
       displayOrder: 20,
+      modifierGroupIds: ['salads','sauces','meats','add_ons','bread','sides','drinks','combo'],
+      hiddenOptions: { salads: ['hot_chips'] },
+    },
+    {
+      id: 'yerros_traditional',
+      categoryId: 'yerros_traditional',
+      name: 'Yerros Traditional',
+      description: 'A classic traditional flavor profile.',
+      imageUrl: 'https://picsum.photos/600/600?random=103',
+      basePrice: 17.0,
+      active: true,
+      displayOrder: 30,
+      modifierGroupIds: ['salads','sauces','meats','add_ons','bread','sides','drinks','combo'],
+    },
+    {
+      id: 'yerros_traditional_kids',
+      categoryId: 'yerros_traditional_kids',
+      name: 'Yerros Traditional (Kids)',
+      description: 'Kids-sized traditional favorite.',
+      imageUrl: 'https://picsum.photos/600/600?random=104',
+      basePrice: 13.0,
+      active: true,
+      displayOrder: 40,
       modifierGroupIds: ['salads','sauces','meats','add_ons','bread','sides','drinks','combo'],
     }
   ];
@@ -206,6 +235,7 @@ async function seed() {
       active: it.active,
       displayOrder: it.displayOrder,
       modifierGroupIds: it.modifierGroupIds,
+      hiddenOptions: it.hiddenOptions,
       updatedAt: serverTimestamp(),
     }, { merge: true });
   }

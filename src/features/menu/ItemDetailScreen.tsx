@@ -6,7 +6,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/AppNavigator';
 import { getModifierGroupsByIds } from '../../data/repositories/ModifierRepo';
 import type { ModifierGroupRecord } from '../../types/menu';
+import { getItem } from '../../data/repositories/ItemRepo';
 import { useCart } from '../../state/stores/useCartStore';
+import { useToast } from '../../state/ui/ToastProvider';
 import { useFavorites } from '../../state/stores/useFavoritesStore';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -22,6 +24,7 @@ type ItemParam = {
   initialSelections?: Record<string, string[]>;
   initialQty?: number;
   initialNote?: string;
+  hiddenOptions?: Record<string, string[]>;
 };
 
 export default function ItemDetailScreen() {
@@ -29,7 +32,8 @@ export default function ItemDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const item = route.params as ItemParam;
   const { user } = useAuth();
-  const { addItem, updateItem } = useCart();
+  const { addItem, updateItem, totalCount } = useCart();
+  const toast = useToast();
   const { add: addFav, remove: removeFav, has } = useFavorites();
 
   const [loading, setLoading] = useState(true);
@@ -37,6 +41,20 @@ export default function ItemDetailScreen() {
   const [selections, setSelections] = useState<Record<string, string[]>>(item.initialSelections ?? {}); // groupId -> optionIds
   const [qty, setQty] = useState(item.initialQty ?? 1);
   const [note, setNote] = useState<string>(item.initialNote ?? '');
+  const [hiddenOptions, setHiddenOptions] = useState<Record<string, string[]>>(item.hiddenOptions ?? {});
+
+  // Fetch missing per-item extras (e.g., hiddenOptions) if not provided
+  useEffect(() => {
+    (async () => {
+      if (!item.hiddenOptions) {
+        const rec = await getItem('MAIN', item.id);
+        if (rec?.hiddenOptions) setHiddenOptions(rec.hiddenOptions);
+        if (rec?.defaultSelections && !item.initialSelections) {
+          setSelections((prev) => ({ ...rec.defaultSelections, ...prev }));
+        }
+      }
+    })();
+  }, [item.id]);
 
   // Load modifier groups for this item
   useEffect(() => {
@@ -45,10 +63,19 @@ export default function ItemDetailScreen() {
       try {
         const list = await getModifierGroupsByIds('MAIN', item.modifierGroupIds ?? []);
         if (!mounted) return;
-        setGroups(list);
+        // Apply item-specific hidden options per group
+        const adjusted = list.map((g) => {
+          const blocked = hiddenOptions[g.id] ?? [];
+          if (!blocked.length) return g;
+          return {
+            ...g,
+            options: g.options.filter((o) => !blocked.includes(o.id)),
+          } as ModifierGroupRecord;
+        });
+        setGroups(adjusted);
         // default selections
         const initial: Record<string, string[]> = {};
-        for (const g of list) {
+        for (const g of adjusted) {
           const defaults = g.options.filter(o => o.defaultSelected).map(o => o.id);
           if (defaults.length) {
             initial[g.id] = defaults;
@@ -67,7 +94,7 @@ export default function ItemDetailScreen() {
     return () => {
       mounted = false;
     };
-  }, [item.modifierGroupIds]);
+  }, [item.modifierGroupIds, hiddenOptions]);
 
   const toggleOption = (group: ModifierGroupRecord, optionId: string) => {
     setSelections((prev) => {
@@ -122,7 +149,7 @@ export default function ItemDetailScreen() {
 
   const onAddToCart = async () => {
     if (!user) {
-      navigation.navigate('Login');
+      toast.show('Please sign in to add items', { action: { label: 'Login', onPress: () => navigation.navigate('Login') } });
       return;
     }
     if (!canAdd) return;
@@ -146,25 +173,36 @@ export default function ItemDetailScreen() {
       selectionDetails,
       note: note?.trim() ? note.trim() : undefined,
     } as const;
-    if (typeof item.editIndex === 'number') {
-      await updateItem(item.editIndex, line);
-      // Return to the existing Cart screen without stacking another route
-      navigation.goBack();
-    } else {
-      await addItem(line);
-      // Replace ItemDetail with Cart so back goes to Home, not back to this ItemDetail
-      navigation.replace('Cart');
+    try {
+      if (typeof item.editIndex === 'number') {
+        await updateItem(item.editIndex, line);
+        toast.show('Updated item in cart');
+        navigation.goBack();
+      } else {
+        await addItem(line);
+        const nextCount = totalCount + qty;
+        toast.show(
+          `Added to cart • ${nextCount} item${nextCount !== 1 ? 's' : ''} total`,
+          { action: { label: 'View', onPress: () => navigation.navigate('Cart') } }
+        );
+      }
+    } catch (e) {
+      console.error('Cart operation failed', e);
+      toast.show('Could not update cart');
     }
   };
 
   const isFav = has(item.id);
   const onSaveFav = async () => {
     if (!user) { navigation.navigate('Login'); return; }
+    const wasFav = isFav;
     await addFav({ id: item.id, name: item.name, img: item.img, selections: Object.entries(selections).map(([groupId, optionIds]) => ({ groupId, optionIds })) });
+    toast.show(wasFav ? 'Favorite updated' : 'Saved to favorites');
   };
   const onRemoveFav = async () => {
     if (!user) { navigation.navigate('Login'); return; }
     await removeFav(item.id);
+    toast.show('Removed from favorites');
   };
 
   return (

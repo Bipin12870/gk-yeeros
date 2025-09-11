@@ -43,6 +43,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const unsubRef = useRef<null | (() => void)>(null);
   const syncedRef = useRef(false);
+  const itemsRef = useRef<CartItem[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -57,6 +58,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items)).catch(() => {});
+    itemsRef.current = items;
   }, [items, hydrated]);
 
   // Firestore sync when logged in
@@ -66,15 +68,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       unsubRef.current = null;
     }
     syncedRef.current = false;
-    if (!user) return;
+    if (!user || !hydrated) return;
     unsubRef.current = watchCart(
       user.uid,
       async (remote) => {
         if (!syncedRef.current) {
           syncedRef.current = true;
-          if ((remote?.length ?? 0) === 0 && items.length > 0) {
-            await setRemoteCart(user.uid, items);
-            return; // will sync on next snapshot
+          const local = itemsRef.current;
+          const rlen = (remote?.length ?? 0);
+          // Prefer the fuller cart on first sync
+          if (local.length > rlen) {
+            await setRemoteCart(user.uid, local).catch(() => {});
+            return; // will sync on next snapshot with local pushed up
           }
         }
         setItems(remote ?? []);
@@ -84,35 +89,38 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (unsubRef.current) unsubRef.current();
       unsubRef.current = null;
     };
-  }, [user?.uid]);
+  }, [user?.uid, hydrated]);
 
   const addItem = async (item: CartItem) => {
-    setItems((prev) => [...prev, item]);
-    if (user) {
-      const next = [...items, item];
-      await setRemoteCart(user.uid, next);
-    }
+    setItems((prev) => {
+      const next = [...prev, item];
+      if (user) setRemoteCart(user.uid, next).catch(() => {});
+      return next;
+    });
   };
 
   const updateItem = async (index: number, item: CartItem) => {
-    setItems((prev) => prev.map((it, i) => (i === index ? item : it)));
-    if (user) {
-      const next = items.map((it, i) => (i === index ? item : it));
-      await setRemoteCart(user.uid, next);
-    }
+    setItems((prev) => {
+      const next = prev.map((it, i) => (i === index ? item : it));
+      if (user) setRemoteCart(user.uid, next).catch(() => {});
+      return next;
+    });
   };
 
   const removeItem = async (index: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== index));
-    if (user) {
-      const next = items.filter((_, i) => i !== index);
-      await setRemoteCart(user.uid, next);
-    }
+    setItems((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (user) setRemoteCart(user.uid, next).catch(() => {});
+      return next;
+    });
   };
 
   const clear = async () => {
-    setItems([]);
-    if (user) await setRemoteCart(user.uid, []);
+    setItems(() => {
+      const next: CartItem[] = [];
+      if (user) setRemoteCart(user.uid, next).catch(() => {});
+      return next;
+    });
   };
 
   const totalCount = items.reduce((sum, it) => sum + it.quantity, 0);

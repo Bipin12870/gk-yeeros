@@ -1,16 +1,18 @@
 import React from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity } from 'react-native';
 import { useCart } from '../../state/stores/useCartStore';
 import { useAuth } from '../auth/AuthProvider';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/AppNavigator';
 import { createPickupOrder } from '../../data/repositories/OrderRepo';
+import { useToast } from '../../state/ui/ToastProvider';
 
 export default function CartScreen() {
   const { items, totalAmount, removeItem, clear } = useCart();
   const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const toast = useToast();
 
   if (!user) {
     return (
@@ -98,10 +100,10 @@ export default function CartScreen() {
                 try {
                   if (!user) { navigation.navigate('Login'); return; }
                   await createPickupOrder('MAIN', { id: user.uid, name: user.displayName ?? null, email: user.email ?? null }, items, totalAmount);
-                  Alert.alert('Order placed', 'We received your pickup order.');
+                  toast.show('Order placed — we received your pickup order.');
                   await clear();
                 } catch (e) {
-                  Alert.alert('Order failed', 'Please try again.');
+                  toast.show('Order failed — please try again.');
                 }
               }}
               style={{ marginTop:12, backgroundColor:'#111827', padding:14, borderRadius:12, alignItems:'center' }}

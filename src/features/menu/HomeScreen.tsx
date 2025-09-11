@@ -29,6 +29,7 @@ import { auth } from "../../lib/firebase";
 
 import { watchStore } from "../../data/repositories/StoreRepo";
 import { watchItems, type ItemRecord } from "../../data/repositories/ItemRepo";
+import { watchCategories, type CategoryRecord } from "../../data/repositories/CategoryRepo";
 import type { StoreRecord } from "../../types/store";
 import { isOpenNow } from "../../utils/openNow";
 
@@ -42,6 +43,7 @@ const IMG_H = CARD_W; // Square cards
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [query, setQuery] = useState("");
+  // Filter by high-level group (e.g., regular vs kids). 'all' shows both.
   const [category, setCategory] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
   const { totalCount } = useCart();
@@ -53,6 +55,8 @@ export default function HomeScreen() {
   const [loadingStore, setLoadingStore] = useState(true);
   const [items, setItems] = useState<ItemRecord[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
 
   useEffect(() => {
     const unsub = watchStore("MAIN", (doc) => {
@@ -67,6 +71,14 @@ export default function HomeScreen() {
       setItems(list);
       setLoadingItems(false);
     }, () => setLoadingItems(false));
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = watchCategories('MAIN', (list) => {
+      setCategories(list);
+      setLoadingCategories(false);
+    }, () => setLoadingCategories(false));
     return unsub;
   }, []);
 
@@ -100,29 +112,74 @@ export default function HomeScreen() {
 
   const open = useMemo(() => isOpenNow(store?.hours), [store?.hours]);
 
-  // Filter placeholders until items connect to Firestore
+  // Filters
+  // Map categoryId -> groupId for group-based filtering (regular/kids)
+  const categoryIdToGroup = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of categories.length > 0 ? categories : []) {
+      const gid = (c as any).groupId ?? (/kids/i.test(c.id) ? 'kids' : 'regular');
+      map.set(c.id, gid);
+    }
+    if (map.size === 0) {
+      // Fallback: infer from id when categories collection missing
+      for (const it of items) {
+        const gid = /kids/i.test(it.categoryId) ? 'kids' : 'regular';
+        if (!map.has(it.categoryId)) map.set(it.categoryId, gid);
+      }
+    }
+    return map;
+  }, [categories, items]);
+
   const filtered = useMemo(() => {
     return items.filter((it) => {
-      const byCat = category === "all" ? true : it.categoryId === category;
+      const gid = categoryIdToGroup.get(it.categoryId) ?? 'regular';
+      const byGroup = category === 'all' ? true : gid === category;
       const bySearch = query.trim() ? it.name.toLowerCase().includes(query.toLowerCase()) : true;
-      return byCat && bySearch;
+      return byGroup && bySearch;
     });
-  }, [items, query, category]);
+  }, [items, query, category, categoryIdToGroup]);
 
-  const classics = filtered.filter(i => i.categoryId === "yerros_classics");
-  const wraps = filtered.filter(i => i.categoryId === "wraps");
-  const plates = filtered.filter(i => i.categoryId === "plates");
+  const effectiveCategories = useMemo(() => {
+    if (categories.length > 0) return categories;
+    const ids = Array.from(new Set(items.map(i => i.categoryId)));
+    // Fallback if no categories collection exists
+    return ids.map((id) => ({ id, name: id, displayOrder: 9999, active: true } as CategoryRecord));
+  }, [categories, items]);
 
-  const scrollX1 = useRef(new Animated.Value(0)).current;
-  const scrollX2 = useRef(new Animated.Value(0)).current;
-  const scrollX3 = useRef(new Animated.Value(0)).current;
+  // Derive groups from categories. Prefer explicit groupId/groupName. Fallback infers from id containing 'kids'.
+  const groups = useMemo(() => {
+    const list: { id: string; name: string }[] = [];
+    const seen = new Set<string>();
+    for (const c of effectiveCategories) {
+      const gid = (c as any).groupId ?? (/kids/i.test(c.id) ? 'kids' : 'regular');
+      const gname = (c as any).groupName ?? (gid === 'kids' ? 'Yerros Kids' : 'Yerros Regular');
+      if (!seen.has(gid)) {
+        seen.add(gid);
+        list.push({ id: gid, name: gname });
+      }
+    }
+    // Sort predictable: regular first, then kids
+    return list.sort((a, b) => (a.id === 'regular' ? -1 : a.id.localeCompare(b.id)));
+  }, [effectiveCategories]);
+
+  // Build rows: one row per top-level group (e.g., Yerros Regular, Yerros Kids), items aggregated from its subcategories
+  const groupRows = useMemo(() => {
+    const activeGroups = category === 'all' ? groups.map(g => g.id) : [category];
+    return activeGroups.map((gid) => {
+      const gname = groups.find(g => g.id === gid)?.name ?? gid;
+      const itemsInGroup = filtered.filter((it) => (categoryIdToGroup.get(it.categoryId) ?? 'regular') === gid);
+      return { id: gid, name: gname, items: itemsInGroup };
+    }).filter(row => row.items.length > 0);
+  }, [groups, category, filtered, categoryIdToGroup]);
+
+  // Each section creates its own scrollX for animation
 
   const addToCart = (item?: any) => {
     // Navigate to detail for customization before adding
-    navigation.navigate('ItemDetail', item);
+    navigation.navigate('ItemDetail', { ...item, initialSelections: item?.defaultSelections });
   };
 
-  if (loadingStore || loadingItems) {
+  if (loadingStore || loadingItems || loadingCategories) {
     return (
       <SafeAreaView style={{ flex:1, alignItems:"center", justifyContent:"center", backgroundColor:"#F8FAFC" }}>
         <ActivityIndicator />
@@ -235,24 +292,33 @@ export default function HomeScreen() {
 
               <TouchableOpacity
                 onPress={() => setShowFilters(s => !s)}
-                style={[enhancedGlass({ paddingHorizontal: 16 }), { 
+                style={[enhancedGlass({ paddingHorizontal: 14 }), { 
                   backgroundColor: showFilters ? 'rgba(79, 70, 229, 0.15)' : 'rgba(255, 255, 255, 0.9)',
                   borderColor: showFilters ? '#4F46E5' : '#D1D5DB'
                 }]}
               >
-                <MaterialIcons name="tune" size={18} color={showFilters ? "#4F46E5" : "#6B7280"} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="filter" size={18} color={showFilters ? "#4F46E5" : "#6B7280"} />
+                  <Text style={{ color: showFilters ? '#4F46E5' : '#374151', fontWeight: '700', fontSize: 13 }}>Filters</Text>
+                </View>
               </TouchableOpacity>
             </View>
 
-            {/* Filter Chips (static for now) */}
+            {/* Filter Chips (group-level) */}
             {showFilters && (
               <Animated.View style={{ marginTop: 16, opacity: showFilters ? 1 : 0 }}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: "row", gap: 10, paddingRight: 20 }}>
                     <EnhancedChip label="All" icon="restaurant" active={category === "all"} onPress={() => setCategory("all")} />
-                    <EnhancedChip label="Classics" icon="star" active={category === "yerros_classics"} onPress={() => setCategory("yerros_classics")} />
-                    <EnhancedChip label="Wraps" icon="nutrition" active={category === "wraps"} onPress={() => setCategory("wraps")} />
-                    <EnhancedChip label="Plates" icon="restaurant-menu" active={category === "plates"} onPress={() => setCategory("plates")} />
+                    {groups.map((g) => (
+                      <EnhancedChip
+                        key={g.id}
+                        label={g.name}
+                        icon={g.id === 'kids' ? 'child-care' : 'restaurant'}
+                        active={category === g.id}
+                        onPress={() => setCategory(g.id)}
+                      />
+                    ))}
                   </View>
                 </ScrollView>
               </Animated.View>
@@ -261,25 +327,15 @@ export default function HomeScreen() {
         </LinearGradient>
       </Animated.View>
 
-      {/* Body (placeholder until menu wire-up) */}
+      {/* Body: one horizontal row per top-level category (group) */}
       <ScrollView style={{ flex: 1, backgroundColor: "#F8FAFC" }} showsVerticalScrollIndicator={false}>
-        {classics.length + wraps.length + plates.length > 0 ? (
+        {groupRows.length > 0 ? (
           <>
-            {classics.length > 0 && (
-              <Section title="🌟 Yerros Classics" subtitle="Our most beloved dishes">
-                <CarouselSection items={classics} scrollX={scrollX1} onAddToCart={addToCart} />
+            {groupRows.map((row) => (
+              <Section key={row.id} title={row.name}>
+                <CarouselSection items={row.items} scrollX={new Animated.Value(0)} onAddToCart={addToCart} />
               </Section>
-            )}
-            {wraps.length > 0 && (
-              <Section title="🌯 Fresh Wraps" subtitle="Perfectly wrapped flavors">
-                <CarouselSection items={wraps} scrollX={scrollX2} onAddToCart={addToCart} />
-              </Section>
-            )}
-            {plates.length > 0 && (
-              <Section title="🍽️ Hearty Plates" subtitle="Complete meal experiences">
-                <CarouselSection items={plates} scrollX={scrollX3} onAddToCart={addToCart} />
-              </Section>
-            )}
+            ))}
           </>
         ) : (
           <View style={{ alignItems: "center", paddingVertical: 60 }}>
@@ -550,7 +606,7 @@ function EnhancedCard({ item, index, scrollX, onAddToCart }: {
 function Section({ title, subtitle, children }: { 
   title: string; 
   subtitle?: string; 
-  children: React.ReactNode 
+  children?: React.ReactNode 
 }) {
   return (
     <View style={{ marginBottom: 24 }}>
@@ -560,7 +616,7 @@ function Section({ title, subtitle, children }: {
           <Text style={{ color: "#6B7280", fontSize: 14, marginTop: 4 }}>{subtitle}</Text>
         )}
       </View>
-      {children}
+      {children ?? null}
     </View>
   );
 }

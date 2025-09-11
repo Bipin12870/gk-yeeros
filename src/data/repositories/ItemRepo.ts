@@ -11,6 +11,14 @@ export type ItemDoc = {
   active?: boolean;
   displayOrder?: number;
   modifierGroupIds?: string[];
+  // Optional per-item default selections: { [groupId]: optionIds[] }
+  defaultSelections?: Record<string, string[]>;
+  // Optional per-item hidden options: { [groupId]: optionIds[] }
+  hiddenOptions?: Record<string, string[]>;
+  // Optional: if false, UI should avoid deep customization (we still allow qty/note)
+  customizable?: boolean;
+  // Admin-only metadata (not used in UI)
+  adminTweaks?: Record<string, any>;
 };
 
 export type ItemRecord = {
@@ -23,6 +31,10 @@ export type ItemRecord = {
   active: boolean;
   displayOrder: number;
   modifierGroupIds?: string[];
+  defaultSelections?: Record<string, string[]>;
+  hiddenOptions?: Record<string, string[]>;
+  customizable?: boolean;
+  adminTweaks?: Record<string, any>;
 };
 
 function toItemRecord(id: string, data: ItemDoc): ItemRecord {
@@ -36,6 +48,10 @@ function toItemRecord(id: string, data: ItemDoc): ItemRecord {
     active: data.active ?? true,
     displayOrder: data.displayOrder ?? 9999,
     modifierGroupIds: data.modifierGroupIds,
+    defaultSelections: data.defaultSelections,
+    hiddenOptions: data.hiddenOptions,
+    customizable: data.customizable,
+    adminTweaks: data.adminTweaks,
   };
 }
 
