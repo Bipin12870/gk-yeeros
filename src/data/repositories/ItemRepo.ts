@@ -1,5 +1,6 @@
 import { collection, getDocs, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import type { ModifierOption } from '../../types/menu';
 import { doc, getDoc } from 'firebase/firestore';
 
 export type ItemDoc = {
@@ -15,6 +16,8 @@ export type ItemDoc = {
   defaultSelections?: Record<string, string[]>;
   // Optional per-item hidden options: { [groupId]: optionIds[] }
   hiddenOptions?: Record<string, string[]>;
+  // Optional per-item extra options appended to groups: { [groupId]: ModifierOption[] }
+  extraOptions?: Record<string, ModifierOption[]>;
   // Optional: if false, UI should avoid deep customization (we still allow qty/note)
   customizable?: boolean;
   // Admin-only metadata (not used in UI)
@@ -33,6 +36,7 @@ export type ItemRecord = {
   modifierGroupIds?: string[];
   defaultSelections?: Record<string, string[]>;
   hiddenOptions?: Record<string, string[]>;
+  extraOptions?: Record<string, ModifierOption[]>;
   customizable?: boolean;
   adminTweaks?: Record<string, any>;
 };
@@ -50,6 +54,7 @@ function toItemRecord(id: string, data: ItemDoc): ItemRecord {
     modifierGroupIds: data.modifierGroupIds,
     defaultSelections: data.defaultSelections,
     hiddenOptions: data.hiddenOptions,
+    extraOptions: data.extraOptions,
     customizable: data.customizable,
     adminTweaks: data.adminTweaks,
   };

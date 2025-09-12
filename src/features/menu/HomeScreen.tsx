@@ -569,13 +569,13 @@ function EnhancedCard({ item, index, scrollX, onAddToCart }: {
       elevation: 4,
     }]}>
       {/* Square Image */}
-      <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', item)}>
+      <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', { ...item, initialSelections: item?.defaultSelections })}>
         <Image source={{ uri: item.img }} style={{ width: "100%", height: IMG_H }} resizeMode="cover" />
       </TouchableOpacity>
 
       {/* Simple Content */}
       <View style={{ padding: 12 }}>
-        <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', item)}>
+        <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', { ...item, initialSelections: item?.defaultSelections })}>
           <Text numberOfLines={1} style={{ color: "#111827", fontWeight: "700", fontSize: 14 }}>
             {item.name}
           </Text>

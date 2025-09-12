@@ -15,7 +15,21 @@ export async function createPickupOrder(
   items: CartItem[],
   totalAmount: number
 ) {
-  const payload = {
+  // Remove any undefined fields recursively to satisfy Firestore constraints
+  const sanitize = (value: any): any => {
+    if (Array.isArray(value)) return value.map(sanitize);
+    if (value && typeof value === 'object') {
+      const out: any = {};
+      for (const [k, v] of Object.entries(value)) {
+        if (v === undefined) continue;
+        out[k] = sanitize(v);
+      }
+      return out;
+    }
+    return value;
+  };
+
+  const payload = sanitize({
     customer,
     type: 'pickup' as const,
     status: 'pending' as const,
@@ -23,7 +37,7 @@ export async function createPickupOrder(
     totalAmount,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  };
+  });
   const col = collection(db, 'stores', storeId, 'orders');
   const ref = await addDoc(col, payload);
   return ref.id;

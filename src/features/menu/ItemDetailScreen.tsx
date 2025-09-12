@@ -5,7 +5,7 @@ import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/AppNavigator';
 import { getModifierGroupsByIds } from '../../data/repositories/ModifierRepo';
-import type { ModifierGroupRecord } from '../../types/menu';
+import type { ModifierGroupRecord, ModifierOption } from '../../types/menu';
 import { getItem } from '../../data/repositories/ItemRepo';
 import { useCart } from '../../state/stores/useCartStore';
 import { useToast } from '../../state/ui/ToastProvider';
@@ -25,6 +25,7 @@ type ItemParam = {
   initialQty?: number;
   initialNote?: string;
   hiddenOptions?: Record<string, string[]>;
+  extraOptions?: Record<string, ModifierOption[]>;
 };
 
 export default function ItemDetailScreen() {
@@ -42,13 +43,15 @@ export default function ItemDetailScreen() {
   const [qty, setQty] = useState(item.initialQty ?? 1);
   const [note, setNote] = useState<string>(item.initialNote ?? '');
   const [hiddenOptions, setHiddenOptions] = useState<Record<string, string[]>>(item.hiddenOptions ?? {});
+  const [extraOptions, setExtraOptions] = useState<Record<string, ModifierOption[]>>(item.extraOptions ?? {});
 
   // Fetch missing per-item extras (e.g., hiddenOptions) if not provided
   useEffect(() => {
     (async () => {
-      if (!item.hiddenOptions) {
+      if (!item.hiddenOptions || !item.extraOptions) {
         const rec = await getItem('MAIN', item.id);
-        if (rec?.hiddenOptions) setHiddenOptions(rec.hiddenOptions);
+        if (rec?.hiddenOptions && !item.hiddenOptions) setHiddenOptions(rec.hiddenOptions);
+        if ((rec as any)?.extraOptions && !item.extraOptions) setExtraOptions((rec as any).extraOptions as Record<string, ModifierOption[]>);
         if (rec?.defaultSelections && !item.initialSelections) {
           setSelections((prev) => ({ ...rec.defaultSelections, ...prev }));
         }
@@ -63,14 +66,17 @@ export default function ItemDetailScreen() {
       try {
         const list = await getModifierGroupsByIds('MAIN', item.modifierGroupIds ?? []);
         if (!mounted) return;
-        // Apply item-specific hidden options per group
+        // Apply per-item extra options first, then filter hidden options
         const adjusted = list.map((g) => {
+          const extras = extraOptions[g.id] ?? [];
+          // merge and de-dup by id, preferring extras to allow overriding
+          const mergedMap = new Map<string, ModifierOption>();
+          for (const o of g.options) mergedMap.set(o.id, o);
+          for (const o of extras) mergedMap.set(o.id, o);
+          let options = Array.from(mergedMap.values());
           const blocked = hiddenOptions[g.id] ?? [];
-          if (!blocked.length) return g;
-          return {
-            ...g,
-            options: g.options.filter((o) => !blocked.includes(o.id)),
-          } as ModifierGroupRecord;
+          if (blocked.length) options = options.filter((o) => !blocked.includes(o.id));
+          return { ...g, options } as ModifierGroupRecord;
         });
         setGroups(adjusted);
         // default selections
@@ -94,7 +100,7 @@ export default function ItemDetailScreen() {
     return () => {
       mounted = false;
     };
-  }, [item.modifierGroupIds, hiddenOptions]);
+  }, [item.modifierGroupIds, hiddenOptions, extraOptions]);
 
   const toggleOption = (group: ModifierGroupRecord, optionId: string) => {
     setSelections((prev) => {
