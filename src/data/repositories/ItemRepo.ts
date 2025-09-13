@@ -1,7 +1,6 @@
-import { collection, getDocs, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { ModifierOption } from '../../types/menu';
-import { doc, getDoc } from 'firebase/firestore';
 
 export type ItemDoc = {
   categoryId: string;

@@ -15,6 +15,7 @@ import { watchStore } from "../../data/repositories/StoreRepo";
 import type { StoreRecord, StaffMember } from "../../types/store";
 import { useNavigation } from "@react-navigation/native";
 import { theme } from "../../theme";
+// Drive image fallback logic: try multiple endpoints
 
 const { width } = Dimensions.get("window");
 const H_PADDING = 16; // screen side padding
@@ -88,10 +89,37 @@ export default function TeamScreen() {
   );
 }
 
+function extractDriveId(url: string): string | undefined {
+  const byPath = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (byPath?.[1]) return byPath[1];
+  try {
+    const u = new URL(url);
+    const idParam = u.searchParams.get("id");
+    if (idParam) return idParam;
+  } catch {}
+  return undefined;
+}
+
+function buildImageCandidates(url?: string): string[] {
+  if (!url) return [];
+  const id = extractDriveId(url);
+  if (id) {
+    return [
+      `https://drive.usercontent.google.com/uc?id=${id}`,
+      `https://drive.google.com/uc?export=view&id=${id}`,
+      `https://drive.google.com/thumbnail?id=${id}&sz=w256`,
+      url,
+    ];
+  }
+  return [url];
+}
+
 function StaffGridCard({ member, width }: { member: StaffMember; width: number }) {
-  const photo = member.photo && member.photo.length
-    ? { uri: member.photo }
-    : { uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=6366F1&color=fff&size=256&bold=true` };
+  const [imgFailed, setImgFailed] = useState(false);
+  const [srcIndex, setSrcIndex] = useState(0);
+  const candidates = useMemo(() => buildImageCandidates(member.photo), [member.photo]);
+  const currentSrc = !imgFailed && candidates[srcIndex];
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=6366F1&color=fff&size=256&bold=true`;
 
   return (
     <View
@@ -110,10 +138,23 @@ function StaffGridCard({ member, width }: { member: StaffMember; width: number }
       }}
     >
       <View style={{ alignItems: "center" }}>
-        <Image
-          source={photo}
-          style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: "#F3F4F6" }}
-        />
+        {currentSrc ? (
+          <Image
+            source={{ uri: currentSrc }}
+            style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: "#F3F4F6" }}
+            resizeMode="cover"
+            onError={() => {
+              if (srcIndex + 1 < candidates.length) setSrcIndex(srcIndex + 1);
+              else setImgFailed(true);
+            }}
+          />
+        ) : (
+          <Image
+            source={{ uri: fallback }}
+            style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: "#F3F4F6" }}
+            resizeMode="cover"
+          />
+        )}
         <Text style={{ marginTop: 10, fontSize: 16, fontWeight: "800", color: theme.colors.text }}>
           {member.name}
         </Text>

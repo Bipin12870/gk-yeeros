@@ -23,6 +23,7 @@ export type RootStackParamList = {
   ItemDetail: any;
   Profile: undefined;
   Team: undefined;
+  OrderDetail: { orderId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -42,6 +43,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Cart" component={CartScreen} options={{ headerShown: true, title: 'Cart' }} />
             <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: true, title: 'Favorites' }} />
             <Stack.Screen name="Team" component={TeamScreen} options={{ headerShown: true, title: 'Our Team' }} />
+            <Stack.Screen name="OrderDetail" component={require('../features/orders/OrderDetailScreen').default} options={{ headerShown: true, title: 'Order' }} />
           </>
         )}
 
@@ -57,6 +59,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: true, title: 'Sign In' }} />
             {/* Include Team so footer button still works before verification */}
             <Stack.Screen name="Team" component={TeamScreen} options={{ headerShown: true, title: 'Our Team' }} />
+            <Stack.Screen name="OrderDetail" component={require('../features/orders/OrderDetailScreen').default} options={{ headerShown: true, title: 'Order' }} />
           </>
         )}
 
@@ -68,6 +71,7 @@ export default function AppNavigator() {
             <Stack.Screen name="ItemDetail" component={ItemDetailScreen} options={{ headerShown: true, title: 'Item' }} />
             <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: true, title: 'Profile' }} />
             <Stack.Screen name="Team" component={TeamScreen} options={{ headerShown: true, title: 'Our Team' }} />
+            <Stack.Screen name="OrderDetail" component={require('../features/orders/OrderDetailScreen').default} options={{ headerShown: true, title: 'Order' }} />
           </>
         )}
       </Stack.Navigator>

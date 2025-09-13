@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity } from 'react-native';
 import { theme } from '../../theme';
 import { useCart } from '../../state/stores/useCartStore';
@@ -8,12 +8,30 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/AppNavigator';
 import { createPickupOrder } from '../../data/repositories/OrderRepo';
 import { useToast } from '../../state/ui/ToastProvider';
+import { watchStore } from '../../data/repositories/StoreRepo';
+import type { StoreRecord } from '../../types/store';
+import { isOpenNow } from '../../utils/openNow';
 
 export default function CartScreen() {
   const { items, totalAmount, removeItem, clear } = useCart();
   const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const toast = useToast();
+  const [store, setStore] = useState<StoreRecord | null>(null);
+
+  // Watch store for online flag and hours
+  useEffect(() => {
+    const unsub = watchStore('MAIN', (doc) => setStore(doc));
+    return unsub;
+  }, []);
+
+  const canPlaceOrder = useMemo(() => {
+    if (!store) return false;
+    const online = store.online !== false; // default to true if missing
+    const pickupEnabled = store.pickup?.enabled !== false; // default to true
+    const open = isOpenNow(store.hours);
+    return online && pickupEnabled && open;
+  }, [store]);
 
   if (!user) {
     return (
@@ -95,9 +113,21 @@ export default function CartScreen() {
         )}
         ListFooterComponent={() => (
           <View style={{ marginTop:16, padding:12, borderTopWidth:1, borderColor: theme.colors.border }}>
+            {!canPlaceOrder && (
+              <View style={{ padding:12, borderRadius:10, backgroundColor: '#FEF3C7', borderWidth:1, borderColor: '#F59E0B', marginBottom:10 }}>
+                <Text style={{ color: '#92400E' }}>
+                  We’re currently closed. Please order during open hours.
+                </Text>
+              </View>
+            )}
             <Text style={{ fontSize:18, fontWeight:'900', textAlign:'right' }}>Total ${totalAmount.toFixed(2)}</Text>
             <TouchableOpacity
+              disabled={!canPlaceOrder}
               onPress={async () => {
+                if (!canPlaceOrder) {
+                  toast.show('We’re closed at the moment.');
+                  return;
+                }
                 try {
                   if (!user) { navigation.navigate('Login'); return; }
                   await createPickupOrder('MAIN', { id: user.uid, name: user.displayName ?? null, email: user.email ?? null }, items, totalAmount);
@@ -107,9 +137,9 @@ export default function CartScreen() {
                   toast.show('Order failed — please try again.');
                 }
               }}
-              style={{ marginTop:12, backgroundColor: theme.colors.primaryDark, padding:14, borderRadius:12, alignItems:'center' }}
+              style={{ marginTop:12, backgroundColor: canPlaceOrder ? theme.colors.primaryDark : '#9ca3af', padding:14, borderRadius:12, alignItems:'center' }}
             >
-              <Text style={{ color:'#fff', fontWeight:'800' }}>Place Order (Pickup)</Text>
+              <Text style={{ color:'#fff', fontWeight:'800' }}>{canPlaceOrder ? 'Place Order (Pickup)' : 'Closed'}</Text>
             </TouchableOpacity>
           </View>
         )}

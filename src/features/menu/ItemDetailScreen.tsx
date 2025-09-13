@@ -8,6 +8,9 @@ import type { RootStackParamList } from '../../app/AppNavigator';
 import { getModifierGroupsByIds } from '../../data/repositories/ModifierRepo';
 import type { ModifierGroupRecord, ModifierOption } from '../../types/menu';
 import { getItem } from '../../data/repositories/ItemRepo';
+import { watchStore } from '../../data/repositories/StoreRepo';
+import type { StoreRecord } from '../../types/store';
+import { isOpenNow } from '../../utils/openNow';
 import { useCart } from '../../state/stores/useCartStore';
 import { useToast } from '../../state/ui/ToastProvider';
 import { useFavorites } from '../../state/stores/useFavoritesStore';
@@ -38,6 +41,7 @@ export default function ItemDetailScreen() {
   const toast = useToast();
   const { add: addFav, remove: removeFav, has } = useFavorites();
 
+  const [store, setStore] = useState<StoreRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<ModifierGroupRecord[]>([]);
   const [selections, setSelections] = useState<Record<string, string[]>>(item.initialSelections ?? {}); // groupId -> optionIds
@@ -59,6 +63,12 @@ export default function ItemDetailScreen() {
       }
     })();
   }, [item.id]);
+
+  // Watch store to determine if ordering is allowed
+  useEffect(() => {
+    const unsub = watchStore('MAIN', (doc) => setStore(doc));
+    return () => unsub();
+  }, []);
 
   // Load modifier groups for this item
   useEffect(() => {
@@ -154,7 +164,16 @@ export default function ItemDetailScreen() {
     return true;
   }, [groups, selections]);
 
+  const canOrder = useMemo(() => {
+    if (!store) return false;
+    const online = store.online !== false;
+    const pickupEnabled = store.pickup?.enabled !== false;
+    const open = isOpenNow(store.hours);
+    return online && pickupEnabled && open;
+  }, [store]);
+
   const onAddToCart = async () => {
+    if (!canOrder) { toast.show('We\'re closed at the moment.'); return; }
     if (!user) {
       toast.show('Please sign in to add items', { action: { label: 'Login', onPress: () => navigation.navigate('Login') } });
       return;
@@ -241,14 +260,30 @@ export default function ItemDetailScreen() {
         ) : (
           <View style={{ marginTop: 16 }}>
             {groups.map((g) => (
-              <View key={g.id} style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize:16, fontWeight:'800', color: theme.colors.text }}>
+              <View
+                key={g.id}
+                style={{
+                  marginBottom: 16,
+                  backgroundColor: theme.colors.card,
+                  borderRadius: theme.tokens.radius.lg,
+                  padding: 14,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  shadowColor: theme.tokens.shadow.soft.color,
+                  shadowOpacity: theme.tokens.shadow.soft.opacity,
+                  shadowOffset: theme.tokens.shadow.soft.offset,
+                  shadowRadius: theme.tokens.shadow.soft.radius,
+                  elevation: theme.tokens.shadow.soft.elevation,
+                }}
+              >
+                <Text style={{ fontSize:18, fontWeight:'800', color: theme.colors.text }}>
                   {g.name} {g.required ? '*' : ''}
                 </Text>
-                <Text style={{ color: theme.colors.muted, marginTop:2, fontSize:12 }}>
+                <Text style={{ color: theme.colors.muted, marginTop:4, fontSize:12 }}>
                   {g.multi ? `Choose ${g.min ?? 0}-${g.max ?? 99}` : 'Choose 1'}
                 </Text>
-                <View style={{ marginTop:8, gap:8 }}>
+                <View style={{ height: 1, backgroundColor: theme.colors.border, marginTop: 10, marginBottom: 6 }} />
+                <View style={{ marginTop:4, gap:8 }}>
                   {g.options.map((opt) => {
                     const selected = (selections[g.id] ?? []).includes(opt.id);
                     return (
@@ -262,7 +297,7 @@ export default function ItemDetailScreen() {
                           backgroundColor: selected ? theme.colors.primaryMutedBg : theme.colors.card
                         }}
                       >
-                        <Text style={{ fontWeight:'700', color: theme.colors.text }}>{opt.name}</Text>
+                        <Text style={{ color: theme.colors.text }}>{opt.name}</Text>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
                           {!!opt.priceDelta && opt.priceDelta !== 0 && (
                             <Text style={{ color: theme.colors.muted }}>
@@ -279,8 +314,23 @@ export default function ItemDetailScreen() {
             ))}
 
             {/* Customer note */}
-            <View style={{ marginTop: 8 }}>
-              <Text style={{ fontSize:14, fontWeight:'800', marginBottom:6 }}>Add a note</Text>
+            <View
+              style={{
+                marginTop: 8,
+                backgroundColor: theme.colors.card,
+                borderRadius: theme.tokens.radius.lg,
+                padding: 14,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                shadowColor: theme.tokens.shadow.soft.color,
+                shadowOpacity: theme.tokens.shadow.soft.opacity,
+                shadowOffset: theme.tokens.shadow.soft.offset,
+                shadowRadius: theme.tokens.shadow.soft.radius,
+                elevation: theme.tokens.shadow.soft.elevation,
+              }}
+            >
+              <Text style={{ fontSize:16, fontWeight:'800' }}>Add a note</Text>
+              <View style={{ height: 1, backgroundColor: theme.colors.border, marginTop: 10, marginBottom: 8 }} />
               <TextInput
                 placeholder="e.g., no onions, extra napkins"
                 placeholderTextColor="#9ca3af"
@@ -298,7 +348,7 @@ export default function ItemDetailScreen() {
                   textAlignVertical:'top',
                 }}
               />
-              <Text style={{ color:'#9ca3af', fontSize:12, marginTop:4 }}>{note.length}/200</Text>
+              <Text style={{ color:'#9ca3af', fontSize:12, marginTop:6 }}>{note.length}/200</Text>
             </View>
 
             {/* Quantity and totals */}
@@ -315,8 +365,13 @@ export default function ItemDetailScreen() {
               <Text style={{ fontSize:18, fontWeight:'900', color: theme.colors.text }}>Total ${total.toFixed(2)}</Text>
             </View>
 
-            <TouchableOpacity disabled={!canAdd} onPress={onAddToCart} style={{ backgroundColor: canAdd ? theme.colors.primaryDark : '#9ca3af', padding:14, borderRadius:12, alignItems:'center', marginTop:16 }}>
-              <Text style={{ color:'#fff', fontWeight:'800' }}>Add to Cart — ${total.toFixed(2)}</Text>
+            {!canOrder && (
+              <View style={{ backgroundColor: '#FEF3C7', borderColor: '#F59E0B', borderWidth: 1, padding: 10, borderRadius: 10, marginTop: 8 }}>
+                <Text style={{ color: '#92400E' }}>We’re currently closed. Browsing only.</Text>
+              </View>
+            )}
+            <TouchableOpacity disabled={!canAdd || !canOrder} onPress={onAddToCart} style={{ backgroundColor: canAdd && canOrder ? theme.colors.primaryDark : '#9ca3af', padding:14, borderRadius:12, alignItems:'center', marginTop:16 }}>
+              <Text style={{ color:'#fff', fontWeight:'800' }}>{canOrder ? `Add to Cart — $${total.toFixed(2)}` : 'Closed'}</Text>
             </TouchableOpacity>
 
             <View style={{ flexDirection:'row', gap:8, marginTop:10 }}>

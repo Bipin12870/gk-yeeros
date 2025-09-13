@@ -52,3 +52,6 @@ export async function updatePickup(
   const ref = doc(db, COLLECTION, storeId);
   await updateDoc(ref, payload);
 }
+
+/** Update a staff member's photo by id in the store's staff array. Stores a Storage path or URL. */
+// removed updateStaffPhoto (Storage migration deferred)

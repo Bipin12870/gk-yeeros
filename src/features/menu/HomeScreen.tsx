@@ -4,7 +4,6 @@
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   TextInput,
@@ -18,6 +17,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { theme } from "../../theme";
@@ -26,6 +26,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../app/AppNavigator";
 import { useAuth } from "../auth/AuthProvider";
 import { useCart } from "../../state/stores/useCartStore";
+import { useToast } from "../../state/ui/ToastProvider";
 import { auth } from "../../lib/firebase";
 
 import { watchStore } from "../../data/repositories/StoreRepo";
@@ -44,6 +45,11 @@ const IMG_H = Math.floor(CARD_W * 0.58); // shorter than square for balance
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
+  // iPhone with Dynamic Island (e.g., 14 Pro/Max) has ~59px top inset; add extra breathing room
+  const baseTop = Platform.OS === 'ios' ? Math.max(insets.top || 0, 44) : Math.max(insets.top || 0, 24);
+  const extraTop = Platform.OS === 'ios' && (insets.top || 0) >= 47 ? 20 : 8;
+  const topPad = baseTop + extraTop;
   const [query, setQuery] = useState("");
   // Filter by high-level group (e.g., regular vs kids). 'all' shows both.
   const [category, setCategory] = useState<string>("all");
@@ -52,6 +58,7 @@ export default function HomeScreen() {
   const { totalCount } = useCart();
   const { user, verified } = useAuth();
   const isAuthed = !!user && !!verified;
+  const toast = useToast();
 
   // Store data
   const [store, setStore] = useState<StoreRecord | null>(null);
@@ -114,6 +121,11 @@ export default function HomeScreen() {
   }, [totalCount]);
 
   const open = useMemo(() => isOpenNow(store?.hours), [store?.hours]);
+  const canOrder = useMemo(() => {
+    const online = store?.online !== false; // default true
+    const pickupEnabled = store?.pickup?.enabled !== false; // default true
+    return online && pickupEnabled && open;
+  }, [store?.online, store?.pickup?.enabled, open]);
 
   // Filters
   // Map categoryId -> groupId for group-based filtering (regular/kids)
@@ -178,6 +190,10 @@ export default function HomeScreen() {
   // Each section creates its own scrollX for animation
 
   const addToCart = (item?: any) => {
+    if (!canOrder) {
+      toast.show("We’re closed at the moment.");
+      return;
+    }
     // Navigate to detail for customization before adding
     navigation.navigate('ItemDetail', { ...item, initialSelections: item?.defaultSelections });
   };
@@ -205,137 +221,319 @@ export default function HomeScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       
-      {/* Header */}
+      {/* Header (web only) */}
+      {Platform.OS === 'web' && (
       <Animated.View style={{ opacity: headerOpacity }}>
         <LinearGradient
           colors={theme.gradients.header}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingBottom: 16, borderBottomWidth: 1, borderColor: "#475569" }}
+          style={{ paddingBottom: 16, borderBottomWidth: 1, borderColor: "#475569", marginBottom: 8 }}
         >
-          <Animated.View 
-            style={{ 
-              paddingHorizontal: 20, 
-              paddingTop: Platform.OS === "android" ? 25 : 10,
-              transform: [{ translateY: slideAnim }]
+          <Animated.View
+            style={{
+              paddingHorizontal: 20,
+              // Web header sits flush to top
+              paddingTop: 12,
+              transform: [{ translateY: slideAnim }],
             }}
           >
             {/* Shop Info Row */}
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: "white", fontWeight: "900", fontSize: 24 }}>
-                  {store.name}
-                </Text>
-                {/* Optional tagline: use announcement or address as subtitle */}
-                <Text style={{ color: theme.colors.onDark, fontSize: 14, marginTop: 2 }}>
-                  {store.address || "Authentic Greek Street Food"}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
-                  <Badge text={open ? "Open now" : "Closed"} tone={open ? "green" : "red"} />
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Ionicons name="time" size={14} color={theme.colors.onDark} />
-                    <Text style={{ color: theme.colors.onDark, fontSize: 12 }}>
-                      Pickup {store.pickup?.minLeadMinutes ?? 10}-{store.pickup?.maxLeadMinutes ?? 25} min
-                    </Text>
-                  </View>
-                </View>
-                {!!store.announcement && (
-                  <Text style={{ color:"#fde68a", marginTop:6, fontWeight:"600" }}>
-                    • {store.announcement}
+            {Platform.OS === 'web' ? (
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "white", fontWeight: "900", fontSize: 24 }}>
+                    {store.name}
                   </Text>
-                )}
-              </View>
-              
-              {/* Action Buttons */}
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                  <GlassButton 
-                    icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
-                    label="Cart"
-                    badge={totalCount > 0 ? totalCount.toString() : undefined}
-                    onPress={() => navigation.navigate('Cart')}
-                  />
-                </Animated.View>
-                <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
-                {isAuthed ? (
-                  <>
-                    <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
-                    <GlassButton icon={<Ionicons name="log-out-outline" size={18} color={theme.colors.onDark} />} label="Logout" onPress={() => auth.signOut()} />
-                  </>
-                ) : (
-                  <>
-                    <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
-                    <GlassButton 
-                      icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} 
-                      label="Sign Up" 
-                      onPress={() => navigation.navigate('Signup')}
-                    />
-                  </>
-                )}
-              </View>
-            </View>
-
-            {/* Search + Filter */}
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-              <View style={[enhancedGlass(), { flex: 1 }]}>
-                <Ionicons name="search" size={18} color={theme.colors.muted} style={{ marginRight: 10 }} />
-                <TextInput
-                  placeholder="Search delicious food..."
-                  placeholderTextColor={theme.colors.muted}
-                  value={query}
-                  onChangeText={setQuery}
-                  style={{ flex: 1, color: theme.colors.text, fontSize: 15 }}
-                />
-                {query.length > 0 && (
-                  <TouchableOpacity onPress={() => setQuery("")}>
-                    <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowFilters(s => !s)}
-                style={[enhancedGlass({ paddingHorizontal: 14 }), { 
-                  backgroundColor: showFilters ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.9)',
-                  borderColor: showFilters ? '#334155' : '#D1D5DB'
-                }]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="filter" size={18} color={showFilters ? "#334155" : "#6B7280"} />
-                  <Text style={{ color: showFilters ? '#334155' : '#374151', fontWeight: '700', fontSize: 13 }}>Filters</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Filter Chips (group-level) */}
-            {showFilters && (
-              <Animated.View style={{ marginTop: 16, opacity: showFilters ? 1 : 0 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: "row", gap: 10, paddingRight: 20 }}>
-                    <EnhancedChip label="All" icon="restaurant" active={category === "all"} onPress={() => setCategory("all")} />
-                    {groups.map((g) => (
-                      <EnhancedChip
-                        key={g.id}
-                        label={g.name}
-                        icon={g.id === 'kids' ? 'child-care' : 'restaurant'}
-                        active={category === g.id}
-                        onPress={() => setCategory(g.id)}
-                      />
-                    ))}
+                  <Text style={{ color: theme.colors.onDark, fontSize: 14, marginTop: 2 }} numberOfLines={1}>
+                    {store.address || "Authentic Greek Street Food"}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+                    <Badge text={open ? "Open now" : "Closed"} tone={open ? "green" : "red"} />
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Ionicons name="time" size={14} color="#FFFFFF" />
+                      <Text style={{ color: theme.colors.onDark, fontSize: 12 }}>
+                        Pickup {store.pickup?.minLeadMinutes ?? 10}-{store.pickup?.maxLeadMinutes ?? 25} min
+                      </Text>
+                    </View>
                   </View>
-                </ScrollView>
-              </Animated.View>
+                  {!!store.announcement && (
+                    <Text style={{ color:"#fde68a", marginTop:6, fontWeight:"600" }}>
+                      • {store.announcement}
+                    </Text>
+                  )}
+                </View>
+                {/* Action Buttons (web: right side) */}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                    <GlassButton 
+                      icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
+                      label="Cart"
+                      badge={totalCount > 0 ? totalCount.toString() : undefined}
+                      onPress={() => navigation.navigate('Cart')}
+                    />
+                  </Animated.View>
+                  <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
+                  {isAuthed ? (
+                    <>
+                      <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
+                      <GlassButton icon={<Ionicons name="log-out-outline" size={18} color={theme.colors.onDark} />} label="Logout" onPress={() => auth.signOut()} />
+                    </>
+                  ) : (
+                    <>
+                      <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
+                      <GlassButton 
+                        icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} 
+                        label="Sign Up" 
+                        onPress={() => navigation.navigate('Signup')}
+                      />
+                    </>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <View style={{ marginBottom: 18 }}>
+                {/* Mobile: stack store info and actions */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "white", fontWeight: "900", fontSize: 24 }}>
+                    {store.name}
+                  </Text>
+                  <Text style={{ color: theme.colors.onDark, fontSize: 14, marginTop: 2 }} numberOfLines={1}>
+                    {store.address || "Authentic Greek Street Food"}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+                    <Badge text={open ? "Open now" : "Closed"} tone={open ? "green" : "red"} />
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Ionicons name="time" size={14} color={theme.colors.onDark} />
+                      <Text style={{ color: theme.colors.onDark, fontSize: 12 }}>
+                        Pickup {store.pickup?.minLeadMinutes ?? 10}-{store.pickup?.maxLeadMinutes ?? 25} min
+                      </Text>
+                    </View>
+                  </View>
+                  {!!store.announcement && (
+                    <Text style={{ color:"#fde68a", marginTop:8, fontWeight:"600" }}>
+                      • {store.announcement}
+                    </Text>
+                  )}
+                </View>
+                {/* Action Buttons (mobile: below) */}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                    <GlassButton 
+                      icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
+                      label="Cart"
+                      badge={totalCount > 0 ? totalCount.toString() : undefined}
+                      onPress={() => navigation.navigate('Cart')}
+                    />
+                  </Animated.View>
+                  <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
+                  {isAuthed ? (
+                    <>
+                      <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
+                      <GlassButton icon={<Ionicons name="log-out-outline" size={18} color={theme.colors.onDark} />} label="Logout" onPress={() => auth.signOut()} />
+                    </>
+                  ) : (
+                    <>
+                      <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
+                      <GlassButton 
+                        icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} 
+                        label="Sign Up" 
+                        onPress={() => navigation.navigate('Signup')}
+                      />
+                    </>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Search + Filter (web: stays in header) */}
+            {Platform.OS === 'web' && (
+              <>
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                  <View style={[enhancedGlass(), { flex: 1 }]}>
+                    <Ionicons name="search" size={18} color={theme.colors.muted} style={{ marginRight: 10 }} />
+                    <TextInput
+                      placeholder="Search delicious food..."
+                      placeholderTextColor={theme.colors.muted}
+                      value={query}
+                      onChangeText={setQuery}
+                      style={{ flex: 1, color: theme.colors.text, fontSize: 15 }}
+                    />
+                    {query.length > 0 && (
+                      <TouchableOpacity onPress={() => setQuery("")}>
+                        <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setShowFilters(s => !s)}
+                    style={[enhancedGlass({ paddingHorizontal: 14 }), { 
+                      backgroundColor: showFilters ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.9)',
+                      borderColor: showFilters ? '#334155' : '#D1D5DB'
+                    }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="filter" size={18} color={showFilters ? "#334155" : "#6B7280"} />
+                      <Text style={{ color: showFilters ? '#334155' : '#374151', fontWeight: '700', fontSize: 13 }}>Filters</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+                {showFilters && (
+                  <Animated.View style={{ marginTop: 16, opacity: showFilters ? 1 : 0 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={{ flexDirection: "row", gap: 10, paddingRight: 20 }}>
+                        <EnhancedChip label="All" icon="restaurant" active={category === "all"} onPress={() => setCategory("all")} />
+                        {groups.map((g) => (
+                          <EnhancedChip
+                            key={g.id}
+                            label={g.name}
+                            icon={g.id === 'kids' ? 'child-care' : 'restaurant'}
+                            active={category === g.id}
+                            onPress={() => setCategory(g.id)}
+                          />
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </Animated.View>
+                )}
+              </>
             )}
           </Animated.View>
         </LinearGradient>
       </Animated.View>
+      )}
+
+      {/* Mobile top section: store details, actions, search & filters */}
+      {Platform.OS !== 'web' && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 4, backgroundColor: theme.colors.background }}>
+          {/* Store details + actions in a clear card container */}
+          <View style={{
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.card,
+            borderRadius: 16,
+            padding: 14,
+            shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 3 }, shadowRadius: 10, elevation: 2,
+          }}>
+            {/* Store details */}
+            <View>
+              <Text style={{ color: theme.colors.text, fontWeight: '900', fontSize: 22 }}>{store.name}</Text>
+              {!!store.address && (
+                <Text style={{ color: theme.colors.muted, marginTop: 2 }} numberOfLines={1}>{store.address}</Text>
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
+                <Badge text={open ? 'Open now' : 'Closed'} tone={open ? 'green' : 'red'} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="time" size={14} color={theme.colors.muted} />
+                  <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                    Pickup {store.pickup?.minLeadMinutes ?? 10}-{store.pickup?.maxLeadMinutes ?? 25} min
+                  </Text>
+                </View>
+              </View>
+              {!!store.announcement && (
+                <Text style={{ color: '#92400E', marginTop: 6 }} numberOfLines={1}>• {store.announcement}</Text>
+              )}
+            </View>
+            {/* Actions */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <GlassButton 
+                  variant="solid"
+                  icon={<Ionicons name="cart-outline" size={18} color={'#fff'} />} 
+                  label="Cart"
+                  badge={totalCount > 0 ? totalCount.toString() : undefined}
+                  onPress={() => navigation.navigate('Cart')}
+                />
+              </Animated.View>
+              <GlassButton variant="solid" icon={<Ionicons name="heart-outline" size={18} color={'#fff'} />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
+              {isAuthed ? (
+                <>
+                  <GlassButton variant="solid" icon={<Ionicons name="person-circle-outline" size={18} color={'#fff'} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
+                  <GlassButton variant="solid" icon={<Ionicons name="log-out-outline" size={18} color={'#fff'} />} label="Logout" onPress={() => auth.signOut()} />
+                </>
+              ) : (
+                <>
+                  <GlassButton variant="solid" icon={<Ionicons name="person-outline" size={18} color={'#fff'} />} label="Login" onPress={() => navigation.navigate('Login')} />
+                  <GlassButton 
+                    variant="solid"
+                    icon={<Ionicons name="person-outline" size={18} color={'#fff'} />} 
+                    label="Sign Up" 
+                    onPress={() => navigation.navigate('Signup')}
+                  />
+                </>
+              )}
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, marginBottom: 10 }}>
+            <View style={[enhancedGlass(), { flex: 1, paddingVertical: 8 }]}>
+              <Ionicons name="search" size={18} color={theme.colors.muted} style={{ marginRight: 10 }} />
+              <TextInput
+                placeholder="Search delicious food..."
+                placeholderTextColor={theme.colors.muted}
+                value={query}
+                onChangeText={setQuery}
+                style={{ flex: 1, color: theme.colors.text, fontSize: 15 }}
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery("")}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowFilters(s => !s)}
+              style={[enhancedGlass({ paddingHorizontal: 14 }), { 
+                backgroundColor: showFilters ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.9)',
+                borderColor: showFilters ? '#334155' : '#D1D5DB'
+              }, { paddingVertical: 8 }]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="filter" size={18} color={showFilters ? "#334155" : "#6B7280"} />
+                <Text style={{ color: showFilters ? '#334155' : '#374151', fontWeight: '700', fontSize: 13 }}>Filters</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          {showFilters && (
+            <Animated.View style={{ marginTop: 10, opacity: showFilters ? 1 : 0 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 10, paddingVertical: 8 }}>
+                  <EnhancedChip label="All" icon="restaurant" active={category === "all"} onPress={() => setCategory("all")} />
+                  {groups.map((g) => (
+                    <EnhancedChip
+                      key={g.id}
+                      label={g.name}
+                      icon={g.id === 'kids' ? 'child-care' : 'restaurant'}
+                      active={category === g.id}
+                      onPress={() => setCategory(g.id)}
+                    />
+                  ))}
+                </View>
+              </ScrollView>
+            </Animated.View>
+          )}
+        </View>
+      )}
+
+      {/* Spacer between header/top section and body */}
+      <View style={{ height: 8 }} />
+
 
       {/* Body: horizontal rows per top-level group with compact cards */}
+      {/* Closed banner */}
+      {!canOrder && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <View style={{ backgroundColor: '#FEF3C7', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 12, padding: 12 }}>
+            <Text style={{ color: '#92400E', fontWeight: '600' }}>We’re currently closed. Browsing only.</Text>
+          </View>
+        </View>
+      )}
+
       <ScrollView style={{ flex: 1, backgroundColor: theme.colors.background }} showsVerticalScrollIndicator={false}>
         {groupRows.length > 0 ? (
           <>
             {groupRows.map((row) => (
               <Section key={row.id} title={row.name}>
-                <CarouselSection items={row.items} scrollX={new Animated.Value(0)} onAddToCart={addToCart} />
+                <CarouselSection items={row.items} scrollX={new Animated.Value(0)} onAddToCart={addToCart} canOrder={canOrder} />
               </Section>
             ))}
           </>
@@ -433,7 +631,8 @@ function Badge({ text, tone }: { text: string; tone: "green" | "red" }) {
   );
 }
 
-function GlassButton({ icon, label, badge, onPress }: { icon: React.ReactNode; label: string; badge?: string; onPress?: () => void }) {
+function GlassButton({ icon, label, badge, onPress, variant }: { icon: React.ReactNode; label: string; badge?: string; onPress?: () => void; variant?: 'glass'|'solid' }) {
+  const isSolid = variant === 'solid';
   return (
     <TouchableOpacity onPress={onPress} style={{
       flexDirection: "row",
@@ -443,12 +642,12 @@ function GlassButton({ icon, label, badge, onPress }: { icon: React.ReactNode; l
       paddingVertical: 8,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.3)",
-      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      borderColor: isSolid ? '#1f2937' : "rgba(255, 255, 255, 0.3)",
+      backgroundColor: isSolid ? '#111827' : "rgba(255, 255, 255, 0.2)",
       position: "relative",
     }}>
       {icon}
-      <Text style={{ color: "white", fontWeight: "600", fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: isSolid ? '#fff' : "white", fontWeight: "600", fontSize: 12 }}>{label}</Text>
       {badge && (
         <View style={{
           position: "absolute",
@@ -514,10 +713,11 @@ function enhancedGlass(extra?: { paddingHorizontal?: number }) {
   };
 }
 
-function CarouselSection({ items, scrollX, onAddToCart }: { 
+function CarouselSection({ items, scrollX, onAddToCart, canOrder }: { 
   items: any[]; 
   scrollX: Animated.Value; 
-  onAddToCart: (item?: any) => void 
+  onAddToCart: (item?: any) => void;
+  canOrder: boolean;
 }) {
   return (
     <Animated.FlatList
@@ -537,17 +737,19 @@ function CarouselSection({ items, scrollX, onAddToCart }: {
           index={index}
           scrollX={scrollX}
           onAddToCart={onAddToCart}
+          canOrder={canOrder}
         />
       )}
     />
   );
 }
 
-function EnhancedCard({ item, index, scrollX, onAddToCart }: { 
+function EnhancedCard({ item, index, scrollX, onAddToCart, canOrder }: { 
   item: any; 
   index: number; 
   scrollX: Animated.Value;
   onAddToCart: (item?: any) => void;
+  canOrder: boolean;
 }) {
   const inputRange = [(index - 1) * (CARD_W + 16), index * (CARD_W + 16), (index + 1) * (CARD_W + 16)];
   const scale = scrollX.interpolate({ inputRange, outputRange: [0.9, 1, 0.9], extrapolate: "clamp" });
@@ -601,16 +803,17 @@ function EnhancedCard({ item, index, scrollX, onAddToCart }: {
         {/* Compact Add button */}
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
           <TouchableOpacity
+            disabled={!canOrder}
             onPress={() => onAddToCart(item)}
             style={{
               marginTop: 10,
-              backgroundColor: theme.colors.primary,
+              backgroundColor: canOrder ? theme.colors.primary : '#9ca3af',
               paddingVertical: 8,
               paddingHorizontal: 12,
               borderRadius: 10,
             }}
           >
-            <Text style={{ color: "white", fontWeight: "700", fontSize: 12 }}>Add</Text>
+            <Text style={{ color: "white", fontWeight: "700", fontSize: 12 }}>{canOrder ? 'Add' : 'Closed'}</Text>
           </TouchableOpacity>
         </View>
       </View>

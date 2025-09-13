@@ -1,13 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, Alert, ActivityIndicator, SafeAreaView, TextInput } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { auth, db } from '../../lib/firebase';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { sendReset } from '../../data/repositories/AuthRepo';
+import { watchUserOrders, type OrderRecord } from '../../data/repositories/OrderRepo';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../app/AppNavigator';
 
 export default function ProfileScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -20,6 +25,9 @@ export default function ProfileScreen() {
   const [specialNote, setSpecialNote] = useState('');
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsMsg, setDetailsMsg] = useState<string | null>(null);
+  const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState<boolean>(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
 
   const email = user?.email || '';
   const joinDate = useMemo(() => (
@@ -50,6 +58,20 @@ export default function ProfileScreen() {
         }
       } catch {}
     })();
+  }, [user?.uid]);
+
+  // Watch past orders for this user
+  useEffect(() => {
+    if (!user) { setOrders([]); setOrdersLoading(false); setOrdersError(null); return; }
+    setOrdersLoading(true);
+    setOrdersError(null);
+    const unsub = watchUserOrders(
+      'MAIN',
+      user.uid,
+      (list) => { setOrders(list); setOrdersLoading(false); },
+      (e) => { setOrders([]); setOrdersLoading(false); setOrdersError('Could not load orders.'); }
+    );
+    return () => unsub();
   }, [user?.uid]);
 
   const onSaveName = async () => {
@@ -251,7 +273,40 @@ export default function ProfileScreen() {
         {/* Past Orders */}
         <View style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e5e7eb' }}>
           <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 8 }}>Past Orders</Text>
-          <Text style={{ color: '#6b7280' }}>You don’t have any past orders yet.</Text>
+          {ordersLoading ? (
+            <View style={{ paddingVertical: 8 }}>
+              <ActivityIndicator />
+            </View>
+          ) : ordersError ? (
+            <Text style={{ color: '#ef4444' }}>Could not load orders.</Text>
+          ) : orders.length === 0 ? (
+            <Text style={{ color: '#6b7280' }}>You don’t have any past orders yet.</Text>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {orders.map((o) => {
+                const created = o.createdAt?.toDate ? o.createdAt.toDate() as Date : undefined;
+                const dateText = created ? created.toLocaleString() : '';
+                const itemsText = o.items?.map((it) => `${it.name} × ${it.quantity}`).join(' · ');
+                const statusColor = o.status === 'completed' ? '#065f46' : o.status === 'cancelled' ? '#991B1B' : '#1f2937';
+                const statusBg = o.status === 'completed' ? '#ecfdf5' : o.status === 'cancelled' ? '#FEE2E2' : '#e5e7eb';
+                return (
+                  <TouchableOpacity key={o.id} onPress={() => navigation.navigate('OrderDetail', { orderId: o.id })} activeOpacity={0.8} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', padding: 12 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontWeight: '800', color: '#111827' }}>Order #{o.id.slice(-6).toUpperCase()}</Text>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: statusBg }}>
+                        <Text style={{ color: statusColor, fontWeight: '700', fontSize: 12 }}>{o.status.toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    {!!dateText && <Text style={{ color: '#6b7280', marginTop: 4 }}>{dateText}</Text>}
+                    {!!itemsText && <Text style={{ color: '#374151', marginTop: 6 }} numberOfLines={2}>{itemsText}</Text>}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                      <Text style={{ fontWeight: '900', color: '#111827' }}>${o.totalAmount.toFixed(2)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Sign Out */}
