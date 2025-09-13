@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { theme } from "../../theme";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../app/AppNavigator";
@@ -37,14 +38,16 @@ import { isOpenNow } from "../../utils/openNow";
 
 const screen = Dimensions.get("window").width;
 const GUTTER = 20;
-const CARD_W = Math.floor((screen - GUTTER * 2 - 16) / 2.3);
-const IMG_H = CARD_W; // Square cards
+// Compact cards: slightly narrower with shorter image height for a modern look
+const CARD_W = Math.floor((screen - GUTTER * 2 - 16) / 2.6);
+const IMG_H = Math.floor(CARD_W * 0.58); // shorter than square for balance
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [query, setQuery] = useState("");
   // Filter by high-level group (e.g., regular vs kids). 'all' shows both.
   const [category, setCategory] = useState<string>("all");
+  // Show filter chips only when toggled
   const [showFilters, setShowFilters] = useState(false);
   const { totalCount } = useCart();
   const { user, verified } = useAuth();
@@ -199,16 +202,16 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       
       {/* Header */}
       <Animated.View style={{ opacity: headerOpacity }}>
         <LinearGradient
-          colors={["#6366F1", "#8B5CF6", "#EC4899"]}
+          colors={theme.gradients.header}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingBottom: 16, borderBottomWidth: 1, borderColor: "#C084FC" }}
+          style={{ paddingBottom: 16, borderBottomWidth: 1, borderColor: "#475569" }}
         >
           <Animated.View 
             style={{ 
@@ -224,14 +227,14 @@ export default function HomeScreen() {
                   {store.name}
                 </Text>
                 {/* Optional tagline: use announcement or address as subtitle */}
-                <Text style={{ color: "#E0E7FF", fontSize: 14, marginTop: 2 }}>
+                <Text style={{ color: theme.colors.onDark, fontSize: 14, marginTop: 2 }}>
                   {store.address || "Authentic Greek Street Food"}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
                   <Badge text={open ? "Open now" : "Closed"} tone={open ? "green" : "red"} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Ionicons name="time" size={14} color="#E0E7FF" />
-                    <Text style={{ color: "#E0E7FF", fontSize: 12 }}>
+                    <Ionicons name="time" size={14} color={theme.colors.onDark} />
+                    <Text style={{ color: theme.colors.onDark, fontSize: 12 }}>
                       Pickup {store.pickup?.minLeadMinutes ?? 10}-{store.pickup?.maxLeadMinutes ?? 25} min
                     </Text>
                   </View>
@@ -247,23 +250,23 @@ export default function HomeScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                   <GlassButton 
-                    icon={<Ionicons name="cart-outline" size={18} color="#E2E8F0" />} 
+                    icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
                     label="Cart"
                     badge={totalCount > 0 ? totalCount.toString() : undefined}
                     onPress={() => navigation.navigate('Cart')}
                   />
                 </Animated.View>
-                <GlassButton icon={<Ionicons name="heart-outline" size={18} color="#E2E8F0" />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
+                <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
                 {isAuthed ? (
                   <>
-                    <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color="#E2E8F0" />} label="Profile" onPress={() => navigation.navigate('Profile')} />
-                    <GlassButton icon={<Ionicons name="log-out-outline" size={18} color="#E2E8F0" />} label="Logout" onPress={() => auth.signOut()} />
+                    <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
+                    <GlassButton icon={<Ionicons name="log-out-outline" size={18} color={theme.colors.onDark} />} label="Logout" onPress={() => auth.signOut()} />
                   </>
                 ) : (
                   <>
-                    <GlassButton icon={<Ionicons name="person-outline" size={18} color="#E2E8F0" />} label="Login" onPress={() => navigation.navigate('Login')} />
+                    <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
                     <GlassButton 
-                      icon={<Ionicons name="person-outline" size={18} color="#E2E8F0" />} 
+                      icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} 
                       label="Sign Up" 
                       onPress={() => navigation.navigate('Signup')}
                     />
@@ -275,31 +278,30 @@ export default function HomeScreen() {
             {/* Search + Filter */}
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
               <View style={[enhancedGlass(), { flex: 1 }]}>
-                <Ionicons name="search" size={18} color="#6B7280" style={{ marginRight: 10 }} />
+                <Ionicons name="search" size={18} color={theme.colors.muted} style={{ marginRight: 10 }} />
                 <TextInput
                   placeholder="Search delicious food..."
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor={theme.colors.muted}
                   value={query}
                   onChangeText={setQuery}
-                  style={{ flex: 1, color: '#111827', fontSize: 15 }}
+                  style={{ flex: 1, color: theme.colors.text, fontSize: 15 }}
                 />
                 {query.length > 0 && (
                   <TouchableOpacity onPress={() => setQuery("")}>
-                    <Ionicons name="close-circle" size={18} color="#6B7280" />
+                    <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
                   </TouchableOpacity>
                 )}
               </View>
-
               <TouchableOpacity
                 onPress={() => setShowFilters(s => !s)}
                 style={[enhancedGlass({ paddingHorizontal: 14 }), { 
-                  backgroundColor: showFilters ? 'rgba(79, 70, 229, 0.15)' : 'rgba(255, 255, 255, 0.9)',
-                  borderColor: showFilters ? '#4F46E5' : '#D1D5DB'
+                  backgroundColor: showFilters ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.9)',
+                  borderColor: showFilters ? '#334155' : '#D1D5DB'
                 }]}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="filter" size={18} color={showFilters ? "#4F46E5" : "#6B7280"} />
-                  <Text style={{ color: showFilters ? '#4F46E5' : '#374151', fontWeight: '700', fontSize: 13 }}>Filters</Text>
+                  <Ionicons name="filter" size={18} color={showFilters ? "#334155" : "#6B7280"} />
+                  <Text style={{ color: showFilters ? '#334155' : '#374151', fontWeight: '700', fontSize: 13 }}>Filters</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -327,8 +329,8 @@ export default function HomeScreen() {
         </LinearGradient>
       </Animated.View>
 
-      {/* Body: one horizontal row per top-level category (group) */}
-      <ScrollView style={{ flex: 1, backgroundColor: "#F8FAFC" }} showsVerticalScrollIndicator={false}>
+      {/* Body: horizontal rows per top-level group with compact cards */}
+      <ScrollView style={{ flex: 1, backgroundColor: theme.colors.background }} showsVerticalScrollIndicator={false}>
         {groupRows.length > 0 ? (
           <>
             {groupRows.map((row) => (
@@ -452,7 +454,7 @@ function GlassButton({ icon, label, badge, onPress }: { icon: React.ReactNode; l
           position: "absolute",
           top: -4,
           right: -4,
-          backgroundColor: "#EF4444",
+          backgroundColor: theme.colors.danger,
           borderRadius: 10,
           minWidth: 18,
           height: 18,
@@ -483,12 +485,13 @@ function EnhancedChip({ label, icon, active, onPress }: {
         paddingVertical: 10,
         borderRadius: 20,
         borderWidth: 1.5,
-        borderColor: active ? "#6366F1" : "#D1D5DB",
-        backgroundColor: active ? "rgba(99, 102, 241, 0.15)" : "rgba(255, 255, 255, 0.9)",
+        // Beige active state for selected filter
+        borderColor: active ? '#D6C7A1' : theme.colors.border,
+        backgroundColor: active ? 'rgba(214, 199, 161, 0.20)' : 'rgba(255, 255, 255, 0.9)',
       }}
     >
-      <MaterialIcons name={icon as any} size={16} color={active ? "#6366F1" : "#6B7280"} />
-      <Text style={{ color: active ? "#4F46E5" : "#374151", fontWeight: "700", fontSize: 13 }}>{label}</Text>
+      <MaterialIcons name={icon as any} size={16} color={active ? '#FFFFFF' : theme.colors.muted} />
+      <Text style={{ color: active ? '#FFFFFF' : "#374151", fontWeight: "700", fontSize: 13 }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -501,7 +504,7 @@ function enhancedGlass(extra?: { paddingHorizontal?: number }) {
     paddingVertical: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.colors.border,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     shadowColor: "#000",
     shadowOpacity: 0.1,
@@ -555,11 +558,11 @@ function EnhancedCard({ item, index, scrollX, onAddToCart }: {
   return (
     <Animated.View style={[{
       width: CARD_W,
-      borderRadius: 16,
+      borderRadius: 14,
       overflow: "hidden",
-      backgroundColor: "white",
+      backgroundColor: theme.colors.card,
       borderWidth: 1,
-      borderColor: "#E5E7EB",
+      borderColor: theme.colors.border,
       opacity,
       transform: [{ scale }],
       shadowColor: "#000",
@@ -568,36 +571,48 @@ function EnhancedCard({ item, index, scrollX, onAddToCart }: {
       shadowRadius: 12,
       elevation: 4,
     }]}>
-      {/* Square Image */}
+      {/* Image with overlay price badge */}
       <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', { ...item, initialSelections: item?.defaultSelections })}>
-        <Image source={{ uri: item.img }} style={{ width: "100%", height: IMG_H }} resizeMode="cover" />
+        <View>
+          <Image source={{ uri: item.img }} style={{ width: "100%", height: IMG_H }} resizeMode="cover" />
+          <LinearGradient
+            colors={theme.gradients.imageOverlay}
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 40 }}
+          />
+          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(17,24,39,0.85)', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 10 }}>
+            <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>${item.price.toFixed(2)}</Text>
+          </View>
+        </View>
       </TouchableOpacity>
 
       {/* Simple Content */}
       <View style={{ padding: 12 }}>
         <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', { ...item, initialSelections: item?.defaultSelections })}>
-          <Text numberOfLines={1} style={{ color: "#111827", fontWeight: "700", fontSize: 14 }}>
+          <Text numberOfLines={1} style={{ color: theme.colors.text, fontWeight: "800", fontSize: 14 }}>
             {item.name}
           </Text>
         </TouchableOpacity>
-        
-        <Text style={{ color: "#6366F1", fontWeight: "900", fontSize: 16, marginTop: 8 }}>
-          ${item.price.toFixed(2)}
-        </Text>
+        {!!item.description && (
+          <Text numberOfLines={1} style={{ color: theme.colors.muted, fontSize: 12, marginTop: 4 }}>
+            {item.description}
+          </Text>
+        )}
 
-        {/* Add Button */}
-        <TouchableOpacity
-          onPress={() => onAddToCart(item)}
-          style={{
-            marginTop: 10,
-            backgroundColor: "#6366F1",
-            paddingVertical: 10,
-            borderRadius: 12,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "white", fontWeight: "700", fontSize: 13 }}>Add to Cart</Text>
-        </TouchableOpacity>
+        {/* Compact Add button */}
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <TouchableOpacity
+            onPress={() => onAddToCart(item)}
+            style={{
+              marginTop: 10,
+              backgroundColor: theme.colors.primary,
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+            }}
+          >
+            <Text style={{ color: "white", fontWeight: "700", fontSize: 12 }}>Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Animated.View>
   );
@@ -611,9 +626,9 @@ function Section({ title, subtitle, children }: {
   return (
     <View style={{ marginBottom: 24 }}>
       <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-        <Text style={{ color: "#111827", fontWeight: "800", fontSize: 20 }}>{title}</Text>
+        <Text style={{ color: theme.colors.text, fontWeight: "800", fontSize: 20 }}>{title}</Text>
         {subtitle && (
-          <Text style={{ color: "#6B7280", fontSize: 14, marginTop: 4 }}>{subtitle}</Text>
+          <Text style={{ color: theme.colors.muted, fontSize: 14, marginTop: 4 }}>{subtitle}</Text>
         )}
       </View>
       {children ?? null}

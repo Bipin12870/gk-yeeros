@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { watchStore } from "../../data/repositories/StoreRepo";
 import type { StoreRecord, StaffMember } from "../../types/store";
 import { useNavigation } from "@react-navigation/native";
+import { theme } from "../../theme";
 
 const { width } = Dimensions.get("window");
 const H_PADDING = 16; // screen side padding
@@ -48,26 +49,26 @@ export default function TeamScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.background }}>
         <ActivityIndicator />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       {/* Header */}
       <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center" }}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 6 }}>
-          <Ionicons name="chevron-back" size={22} color="#111827" />
+          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 22, fontWeight: "900", color: "#111827" }}>Our Team</Text>
+        <Text style={{ fontSize: 22, fontWeight: "900", color: theme.colors.text }}>Our Team</Text>
       </View>
 
       {staff.length === 0 ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
           <Ionicons name="people-outline" size={48} color="#9CA3AF" />
-          <Text style={{ color: "#6B7280", marginTop: 10, textAlign: "center" }}>
+          <Text style={{ color: theme.colors.muted, marginTop: 10, textAlign: "center" }}>
             Staff profiles are coming soon.
           </Text>
         </View>
@@ -97,9 +98,9 @@ function StaffGridCard({ member, width }: { member: StaffMember; width: number }
       style={{
         width,
         borderRadius: 16,
-        backgroundColor: "white",
+        backgroundColor: theme.colors.card,
         borderWidth: 1,
-        borderColor: "#E5E7EB",
+        borderColor: theme.colors.border,
         shadowColor: "#000",
         shadowOpacity: 0.06,
         shadowOffset: { width: 0, height: 3 },
@@ -113,11 +114,11 @@ function StaffGridCard({ member, width }: { member: StaffMember; width: number }
           source={photo}
           style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: "#F3F4F6" }}
         />
-        <Text style={{ marginTop: 10, fontSize: 16, fontWeight: "800", color: "#111827" }}>
+        <Text style={{ marginTop: 10, fontSize: 16, fontWeight: "800", color: theme.colors.text }}>
           {member.name}
         </Text>
         {!!member.role && (
-          <Text style={{ color: "#6B7280", marginTop: 2 }} numberOfLines={1}>
+          <Text style={{ color: theme.colors.muted, marginTop: 2 }} numberOfLines={1}>
             {member.role}
           </Text>
         )}

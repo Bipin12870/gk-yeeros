@@ -12,11 +12,11 @@ async function main() {
   // 2) Your store payload
   const storeDoc = {
     name: "Gk's Yerros",
-    tagline: "Authentic Greek Street Food",
+    tagline: "Authentic Lebanese Street Food",
     timezone: "Australia/Sydney",
     online: true,
-    phone: "+61 400 000 000",
-    address: "123 Example St, Sydney NSW",
+    phone: "0295209106",
+    address: "60 Station Street, Engadine, Sydney NSW",
     announcement: "",
     pickup: {
       enabled: true,
@@ -25,49 +25,41 @@ async function main() {
       bufferMinutes: 5,
     },
     hours: {
-      mon: ["10:00-20:00"],
-      tue: ["10:00-20:00"],
+      mon: ["10:00-19:00"],
+      tue: ["10:00-19:00"],
       wed: ["10:00-20:00"],
-      thu: ["10:00-22:00"],
-      fri: ["10:00-23:00"],
-      sat: ["11:00-23:00"],
-      sun: ["11:00-21:00"]
+      thu: ["10:00-20:00"],
+      fri: ["10:00-20:00"],
+      sat: ["11:00-20:00"],
+      sun: ["11:00-20:00"]
     },
     social: {
-      instagram: "https://instagram.com/yourhandle",
-      facebook: "https://facebook.com/yourpage",
+      instagram: "https://www.instagram.com/gksyeeros_engadine?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==",
+      facebook: "https://www.facebook.com/profile.php?id=100076822425238&ref=_xav_ig_profile_page_web#",
       tiktok: ""
     },
     legal: {
-      termsUrl: "https://example.com/terms",     // you can overwrite later
-      privacyUrl: "https://example.com/privacy"
+      termsUrl: "https://gist.githubusercontent.com/Bipin12870/930b468ac24df6151967a4a6dfa3eb4f/raw/3f5af6c44f09af56ee533e2454654b76b21edb97/gistfile1.txt",     // you can overwrite later
+      privacyUrl: "https://gist.githubusercontent.com/Bipin12870/930b468ac24df6151967a4a6dfa3eb4f/raw/3f5af6c44f09af56ee533e2454654b76b21edb97/gistfile1.txt"
     },
     updatedAt: serverTimestamp(),
   };
 
-  // optional staff array you wanted
+  // Staff list
   const staff = [
-    {
-      id: "owner_bipin",
-      name: "Bipin Sapkota",
-      role: "Owner",
-      bio: "Runs the joint; keeps the spits spinning.",
-      photoUrl: "https://i.pravatar.cc/300?img=12",
-      socials: { instagram: "https://instagram.com/...", }
-    },
-    {
-      id: "chef_maria",
-      name: "Maria",
-      role: "Head Chef",
-      bio: "Masters sauces & seasoning.",
-      photoUrl: "https://i.pravatar.cc/300?img=32",
-      socials: {}
-    }
+    { id: "tony_chaouk", name: "Tony Chaouk", role: "Owner", photo: "https://i.pravatar.cc/300?img=11", bio: "Co-owner overseeing operations and quality." },
+    { id: "amara_chaouk", name: "Amara Chaouk", role: "Owner", photo: "https://i.pravatar.cc/300?img=14", bio: "Co-owner focused on customer experience." },
+    { id: "aboudy_chaouk", name: "Aboudy Chaouk", role: "Staff", photo: "https://i.pravatar.cc/300?img=21", bio: "All-rounder helping across the floor." },
+    { id: "sonu_rai", name: "Sonu Rai", role: "Supervisor", photo: "https://i.pravatar.cc/300?img=22", bio: "Keeps service running smoothly. Best in the business" },
+    { id: "amritpal_singh", name: "Amritpal Singh", role: "Grill", photo: "https://i.pravatar.cc/300?img=23", bio: "On the grill crafting perfect sears." },
+    { id: "bipin_sapkota", name: "Bipin Sapkota", role: "Staff", photo: "https://i.pravatar.cc/300?img=12", bio: "Supporting front and back of house." },
+    { id: "mahmudda", name: "Mahmudda Sister", role: "Staff", photo: "https://i.pravatar.cc/300?img=24", bio: "Kitchen support, helping wherever needed." },
+    { id: "prakash", name: "Prakash", role: "Staff", photo: "https://i.pravatar.cc/300?img=25", bio: "Reliable hand across shifts." },
   ];
 
   // 3) Write store root
   await setDoc(doc(db, 'stores', 'MAIN'), storeDoc, { merge: true });
-  // 4) Write staff array under stores/MAIN (we’ll keep it as a map with array, or you can do a subcollection if you prefer)
+  // 4) Write staff array under stores/MAIN
   await setDoc(doc(db, 'stores', 'MAIN'), { staff }, { merge: true });
 
   console.log('✅ Seed complete. Check Firestore → stores/MAIN');

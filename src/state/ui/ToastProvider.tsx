@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Text, TouchableOpacity, View } from 'react-native';
+import { theme } from '../../theme';
 
 type ToastOptions = {
   duration?: number; // ms
@@ -63,7 +64,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               paddingHorizontal: 14,
               paddingVertical: 12,
               borderRadius: 12,
-              backgroundColor: '#111827',
+              backgroundColor: theme.colors.text,
               flexDirection: 'row',
               alignItems: 'center',
               gap: 12,
@@ -81,7 +82,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             )}
             {!!action && (
               <TouchableOpacity onPress={() => { action.onPress(); hide(); }}>
-                <Text style={{ color: '#60a5fa', fontWeight: '900' }}>{action.label}</Text>
+                <Text style={{ color: theme.colors.onDark, fontWeight: '900' }}>{action.label}</Text>
               </TouchableOpacity>
             )}
           </Animated.View>

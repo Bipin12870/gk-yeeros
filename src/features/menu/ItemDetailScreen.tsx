@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from 'react-native';
+import { theme } from '../../theme';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -212,15 +213,26 @@ export default function ItemDetailScreen() {
   };
 
   return (
-    <ScrollView style={{ flex:1, backgroundColor:'#fff' }} contentContainerStyle={{ paddingBottom:24 }}>
-      <Image source={{ uri: item.img }} style={{ width: '100%', height: 260 }} resizeMode="cover" />
+    <ScrollView style={{ flex:1, backgroundColor: theme.colors.card }} contentContainerStyle={{ paddingBottom:24 }}>
+      <Image
+        source={{ uri: item.img }}
+        style={{
+          width: '70%',
+          aspectRatio: 2,
+          alignSelf: 'center',
+          marginTop: 12,
+          borderRadius: 12,
+          backgroundColor: '#F3F4F6',
+        }}
+        resizeMode="cover"
+      />
       <View style={{ padding:16 }}>
-        <Text style={{ fontSize:22, fontWeight:'800', marginBottom:6 }}>{item.name}</Text>
-        <Text style={{ fontSize:20, fontWeight:'900', color:'#111827' }}>${unitPrice.toFixed(2)}</Text>
-        <Text style={{ color:'#6b7280', marginTop:2 }}>
+        <Text style={{ fontSize:22, fontWeight:'800', marginBottom:6, color: theme.colors.text }}>{item.name}</Text>
+        <Text style={{ fontSize:20, fontWeight:'900', color: theme.colors.text }}>${unitPrice.toFixed(2)}</Text>
+        <Text style={{ color: theme.colors.muted, marginTop:2 }}>
           Base ${item.price.toFixed(2)}{priceDelta !== 0 ? `, Add-ons ${priceDelta > 0 ? '+' : ''}${priceDelta.toFixed(2)}` : ''}
         </Text>
-        {!!item.description && <Text style={{ color:'#6b7280', marginTop:10 }}>{item.description}</Text>}
+        {!!item.description && <Text style={{ color: theme.colors.muted, marginTop:10 }}>{item.description}</Text>}
 
         {loading ? (
           <View style={{ paddingVertical:24 }}>
@@ -230,10 +242,10 @@ export default function ItemDetailScreen() {
           <View style={{ marginTop: 16 }}>
             {groups.map((g) => (
               <View key={g.id} style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize:16, fontWeight:'800' }}>
+                <Text style={{ fontSize:16, fontWeight:'800', color: theme.colors.text }}>
                   {g.name} {g.required ? '*' : ''}
                 </Text>
-                <Text style={{ color:'#6b7280', marginTop:2, fontSize:12 }}>
+                <Text style={{ color: theme.colors.muted, marginTop:2, fontSize:12 }}>
                   {g.multi ? `Choose ${g.min ?? 0}-${g.max ?? 99}` : 'Choose 1'}
                 </Text>
                 <View style={{ marginTop:8, gap:8 }}>
@@ -246,18 +258,18 @@ export default function ItemDetailScreen() {
                         style={{
                           flexDirection:'row', alignItems:'center', justifyContent:'space-between',
                           padding:12, borderRadius:12, borderWidth:1,
-                          borderColor: selected ? '#6366f1' : '#e5e7eb',
-                          backgroundColor: selected ? 'rgba(99,102,241,0.08)' : '#fff'
+                          borderColor: selected ? theme.colors.primary : theme.colors.border,
+                          backgroundColor: selected ? theme.colors.primaryMutedBg : theme.colors.card
                         }}
                       >
-                        <Text style={{ fontWeight:'700', color:'#111827' }}>{opt.name}</Text>
+                        <Text style={{ fontWeight:'700', color: theme.colors.text }}>{opt.name}</Text>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
                           {!!opt.priceDelta && opt.priceDelta !== 0 && (
-                            <Text style={{ color:'#6b7280' }}>
+                            <Text style={{ color: theme.colors.muted }}>
                               {opt.priceDelta > 0 ? `+${opt.priceDelta.toFixed(2)}` : `${opt.priceDelta.toFixed(2)}`}
                             </Text>
                           )}
-                          <View style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderColor: selected ? '#6366f1' : '#9ca3af', backgroundColor: selected ? '#6366f1' : 'transparent' }} />
+                          <View style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderColor: selected ? theme.colors.primary : '#9ca3af', backgroundColor: selected ? theme.colors.primary : 'transparent' }} />
                         </View>
                       </TouchableOpacity>
                     );
@@ -278,7 +290,7 @@ export default function ItemDetailScreen() {
                 numberOfLines={3}
                 style={{
                   borderWidth:1,
-                  borderColor:'#e5e7eb',
+                  borderColor: theme.colors.border,
                   borderRadius:12,
                   paddingHorizontal:12,
                   paddingVertical:10,
@@ -300,20 +312,20 @@ export default function ItemDetailScreen() {
                   <Text style={{ fontSize:18, fontWeight:'800' }}>+</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize:18, fontWeight:'900', color:'#111827' }}>Total ${total.toFixed(2)}</Text>
+              <Text style={{ fontSize:18, fontWeight:'900', color: theme.colors.text }}>Total ${total.toFixed(2)}</Text>
             </View>
 
-            <TouchableOpacity disabled={!canAdd} onPress={onAddToCart} style={{ backgroundColor: canAdd ? '#111827' : '#9ca3af', padding:14, borderRadius:12, alignItems:'center', marginTop:16 }}>
+            <TouchableOpacity disabled={!canAdd} onPress={onAddToCart} style={{ backgroundColor: canAdd ? theme.colors.primaryDark : '#9ca3af', padding:14, borderRadius:12, alignItems:'center', marginTop:16 }}>
               <Text style={{ color:'#fff', fontWeight:'800' }}>Add to Cart — ${total.toFixed(2)}</Text>
             </TouchableOpacity>
 
             <View style={{ flexDirection:'row', gap:8, marginTop:10 }}>
-              <TouchableOpacity onPress={onSaveFav} style={{ flex:1, backgroundColor:'#f3f4f6', padding:12, borderRadius:12, alignItems:'center' }}>
-                <Text style={{ color:'#111827', fontWeight:'700' }}>{isFav ? 'Update Favorite' : 'Save to Favorites'}</Text>
+              <TouchableOpacity onPress={onSaveFav} style={{ flex:1, backgroundColor: theme.colors.primaryMutedBg, padding:12, borderRadius:12, alignItems:'center' }}>
+                <Text style={{ color: theme.colors.primaryDark, fontWeight:'700' }}>{isFav ? 'Update Favorite' : 'Save to Favorites'}</Text>
               </TouchableOpacity>
               {isFav && (
-                <TouchableOpacity onPress={onRemoveFav} style={{ padding:12, borderRadius:12, alignItems:'center', backgroundColor:'#fee2e2' }}>
-                  <Text style={{ color:'#991b1b', fontWeight:'800' }}>Remove</Text>
+                <TouchableOpacity onPress={onRemoveFav} style={{ padding:12, borderRadius:12, alignItems:'center', backgroundColor: theme.colors.destructiveBg }}>
+                  <Text style={{ color: theme.colors.destructiveText, fontWeight:'800' }}>Remove</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -321,7 +333,7 @@ export default function ItemDetailScreen() {
         )}
 
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding:12, alignItems:'center' }}>
-          <Text style={{ color:'#6b7280' }}>Back</Text>
+          <Text style={{ color: theme.colors.muted }}>Back</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

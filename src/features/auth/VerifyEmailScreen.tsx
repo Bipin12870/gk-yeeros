@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { theme } from '../../theme';
 import { useAuth } from './AuthProvider';
 import { resendVerification } from '../../data/repositories/AuthRepo';
 import { auth } from '../../lib/firebase';
@@ -27,20 +28,20 @@ export default function VerifyEmailScreen() {
   };
 
   return (
-    <View style={{ flex:1, padding:24, justifyContent:'center' }}>
-      <Text style={{ fontSize:22, fontWeight:'800', marginBottom:8 }}>Confirm your email</Text>
-      <Text style={{ color:'#4b5563', marginBottom:16 }}>
+    <View style={{ flex:1, padding:24, justifyContent:'center', backgroundColor: theme.colors.background }}>
+      <Text style={{ fontSize:22, fontWeight:'800', marginBottom:8, color: theme.colors.text }}>Confirm your email</Text>
+      <Text style={{ color: theme.colors.muted, marginBottom:16 }}>
         We sent a verification link to:
       </Text>
-      <Text style={{ fontWeight:'700', marginBottom:16 }}>{user?.email}</Text>
-      <Text style={{ color:'#6b7280', marginBottom:24 }}>
+      <Text style={{ fontWeight:'700', marginBottom:16, color: theme.colors.text }}>{user?.email}</Text>
+      <Text style={{ color: theme.colors.muted, marginBottom:24 }}>
         After verifying, reopen the app to continue.
       </Text>
 
       <TouchableOpacity
         onPress={onResend}
         disabled={busy}
-        style={{ backgroundColor:'black', padding:14, borderRadius:12, alignItems:'center', marginBottom:10 }}
+        style={{ backgroundColor: theme.colors.primaryDark, padding:14, borderRadius:12, alignItems:'center', marginBottom:10 }}
       >
         <Text style={{ color:'white', fontWeight:'700' }}>
           {busy ? 'Sending…' : 'Resend verification email'}
@@ -64,7 +65,7 @@ export default function VerifyEmailScreen() {
         }}
         style={{ padding:12, alignItems:'center' }}
       >
-        <Text style={{ color:'#ef4444', fontWeight:'700' }}>Use a different email</Text>
+        <Text style={{ color: theme.colors.danger, fontWeight:'700' }}>Use a different email</Text>
       </TouchableOpacity>
     </View>
   );

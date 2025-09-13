@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, FlatList, TouchableOpacity } from 'react-native';
+import { theme } from '../../theme';
 import { useFavorites } from '../../state/stores/useFavoritesStore';
 import { useAuth } from '../auth/AuthProvider';
 import { useNavigation } from '@react-navigation/native';
@@ -15,10 +16,10 @@ export default function FavoritesScreen() {
 
   if (!user) {
     return (
-      <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:20 }}>
-        <Text style={{ fontSize:22, fontWeight:'800' }}>Favorites</Text>
-        <Text style={{ color:'#6b7280', marginTop:8, textAlign:'center' }}>Please sign in to view and save your favorites.</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Login')} style={{ marginTop:12, backgroundColor:'#111827', paddingHorizontal:16, paddingVertical:10, borderRadius:10 }}>
+      <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:20, backgroundColor: theme.colors.background }}>
+        <Text style={{ fontSize:22, fontWeight:'800', color: theme.colors.text }}>Favorites</Text>
+        <Text style={{ color: theme.colors.muted, marginTop:8, textAlign:'center' }}>Please sign in to view and save your favorites.</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Login')} style={{ marginTop:12, backgroundColor: theme.colors.primaryDark, paddingHorizontal:16, paddingVertical:10, borderRadius:10 }}>
           <Text style={{ color:'#fff', fontWeight:'700' }}>Sign In</Text>
         </TouchableOpacity>
       </View>
@@ -27,9 +28,9 @@ export default function FavoritesScreen() {
 
   if (items.length === 0) {
     return (
-      <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
-        <Text style={{ fontSize:22, fontWeight:'800' }}>Favorites</Text>
-        <Text style={{ color:'#6b7280', marginTop:8 }}>Your saved items will appear here.</Text>
+      <View style={{ flex:1, alignItems:'center', justifyContent:'center', backgroundColor: theme.colors.background }}>
+        <Text style={{ fontSize:22, fontWeight:'800', color: theme.colors.text }}>Favorites</Text>
+        <Text style={{ color: theme.colors.muted, marginTop:8 }}>Your saved items will appear here.</Text>
       </View>
     );
   }
@@ -86,7 +87,7 @@ function FavoriteRow({ id, name, img, selections, onRemove }: {
   }, [id]);
 
   return (
-    <View style={{ gap:8, padding:12, borderWidth:1, borderColor:'#e5e7eb', borderRadius:12, backgroundColor:'#fff' }}>
+    <View style={{ gap:8, padding:12, borderWidth:1, borderColor: theme.colors.border, borderRadius:12, backgroundColor: theme.colors.card }}>
       <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
         {img ? (
           <Image source={{ uri: img }} style={{ width:64, height:64, borderRadius:8 }} />
@@ -94,12 +95,12 @@ function FavoriteRow({ id, name, img, selections, onRemove }: {
           <View style={{ width:64, height:64, borderRadius:8, backgroundColor:'#f3f4f6' }} />
         )}
         <View style={{ flex:1 }}>
-          <Text style={{ fontWeight:'800', fontSize:16 }}>{name}</Text>
+          <Text style={{ fontWeight:'800', fontSize:16, color: theme.colors.text }}>{name}</Text>
           {prefText ? (
-            <Text style={{ color:'#6b7280', marginTop:4 }} numberOfLines={2}>{prefText}</Text>
+            <Text style={{ color: theme.colors.muted, marginTop:4 }} numberOfLines={2}>{prefText}</Text>
           ) : (
             selections && selections.length > 0 ? (
-              <Text style={{ color:'#6b7280', marginTop:4 }} numberOfLines={1}>
+              <Text style={{ color: theme.colors.muted, marginTop:4 }} numberOfLines={1}>
                 {selections.length} preference{selections.length > 1 ? 's' : ''} saved
               </Text>
             ) : null
@@ -119,12 +120,12 @@ function FavoriteRow({ id, name, img, selections, onRemove }: {
               initialSelections: selections ? Object.fromEntries(selections.map(s => [s.groupId, s.optionIds])) : undefined,
             });
           }}
-          style={{ paddingHorizontal:12, paddingVertical:8, borderRadius:8, backgroundColor:'#eef2ff' }}
+          style={{ paddingHorizontal:12, paddingVertical:8, borderRadius:8, backgroundColor: theme.colors.primaryMutedBg }}
         >
-          <Text style={{ color:'#3730a3', fontWeight:'800' }}>Edit</Text>
+          <Text style={{ color: theme.colors.primaryDark, fontWeight:'800' }}>Edit</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onRemove} style={{ paddingHorizontal:12, paddingVertical:8, borderRadius:8, backgroundColor:'#fee2e2' }}>
-          <Text style={{ color:'#991b1b', fontWeight:'800' }}>Remove</Text>
+        <TouchableOpacity onPress={onRemove} style={{ paddingHorizontal:12, paddingVertical:8, borderRadius:8, backgroundColor: theme.colors.destructiveBg }}>
+          <Text style={{ color: theme.colors.destructiveText, fontWeight:'800' }}>Remove</Text>
         </TouchableOpacity>
       </View>
     </View>
