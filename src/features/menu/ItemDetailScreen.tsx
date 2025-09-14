@@ -32,6 +32,32 @@ type ItemParam = {
   extraOptions?: Record<string, ModifierOption[]>;
 };
 
+// Google Drive helpers (mirror TeamScreen behavior)
+function extractDriveId(url: string): string | undefined {
+  const byPath = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (byPath?.[1]) return byPath[1];
+  try {
+    const u = new URL(url);
+    const idParam = u.searchParams.get('id');
+    if (idParam) return idParam;
+  } catch {}
+  return undefined;
+}
+
+function buildImageCandidates(url?: string): string[] {
+  if (!url) return [];
+  const id = extractDriveId(url);
+  if (id) {
+    return [
+      `https://drive.usercontent.google.com/uc?id=${id}`,
+      `https://drive.google.com/uc?export=view&id=${id}`,
+      `https://drive.google.com/thumbnail?id=${id}&sz=w1024`,
+      url,
+    ];
+  }
+  return [url];
+}
+
 export default function ItemDetailScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'ItemDetail'>>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -49,6 +75,13 @@ export default function ItemDetailScreen() {
   const [note, setNote] = useState<string>(item.initialNote ?? '');
   const [hiddenOptions, setHiddenOptions] = useState<Record<string, string[]>>(item.hiddenOptions ?? {});
   const [extraOptions, setExtraOptions] = useState<Record<string, ModifierOption[]>>(item.extraOptions ?? {});
+
+  // Drive-aware image candidates for the detail image
+  const candidates = useMemo(() => buildImageCandidates(item?.img), [item?.img]);
+  const [srcIndex, setSrcIndex] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
+  const currentSrc = !imgFailed && candidates[srcIndex];
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item?.name ?? 'Item')}&background=475569&color=fff&size=1024&bold=true`;
 
   // Fetch missing per-item extras (e.g., hiddenOptions) if not provided
   useEffect(() => {
@@ -233,18 +266,37 @@ export default function ItemDetailScreen() {
 
   return (
     <ScrollView style={{ flex:1, backgroundColor: theme.colors.card }} contentContainerStyle={{ paddingBottom:24 }}>
-      <Image
-        source={{ uri: item.img }}
-        style={{
-          width: '70%',
-          aspectRatio: 2,
-          alignSelf: 'center',
-          marginTop: 12,
-          borderRadius: 12,
-          backgroundColor: '#F3F4F6',
-        }}
-        resizeMode="cover"
-      />
+      {currentSrc ? (
+        <Image
+          source={{ uri: currentSrc }}
+          style={{
+            width: '70%',
+            aspectRatio: 2,
+            alignSelf: 'center',
+            marginTop: 12,
+            borderRadius: 12,
+            backgroundColor: '#F3F4F6',
+          }}
+          resizeMode="cover"
+          onError={() => {
+            if (srcIndex + 1 < candidates.length) setSrcIndex(srcIndex + 1);
+            else setImgFailed(true);
+          }}
+        />
+      ) : (
+        <Image
+          source={{ uri: fallback }}
+          style={{
+            width: '70%',
+            aspectRatio: 2,
+            alignSelf: 'center',
+            marginTop: 12,
+            borderRadius: 12,
+            backgroundColor: '#F3F4F6',
+          }}
+          resizeMode="cover"
+        />
+      )}
       <View style={{ padding:16 }}>
         <Text style={{ fontSize:22, fontWeight:'800', marginBottom:6, color: theme.colors.text }}>{item.name}</Text>
         <Text style={{ fontSize:20, fontWeight:'900', color: theme.colors.text }}>${unitPrice.toFixed(2)}</Text>

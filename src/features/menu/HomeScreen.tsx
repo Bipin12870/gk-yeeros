@@ -43,6 +43,32 @@ const GUTTER = 20;
 const CARD_W = Math.floor((screen - GUTTER * 2 - 16) / 2.6);
 const IMG_H = Math.floor(CARD_W * 0.58); // shorter than square for balance
 
+// Google Drive helpers (mirror TeamScreen behavior)
+function extractDriveId(url: string): string | undefined {
+  const byPath = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (byPath?.[1]) return byPath[1];
+  try {
+    const u = new URL(url);
+    const idParam = u.searchParams.get("id");
+    if (idParam) return idParam;
+  } catch {}
+  return undefined;
+}
+
+function buildImageCandidates(url?: string): string[] {
+  if (!url) return [];
+  const id = extractDriveId(url);
+  if (id) {
+    return [
+      `https://drive.usercontent.google.com/uc?id=${id}`,
+      `https://drive.google.com/uc?export=view&id=${id}`,
+      `https://drive.google.com/thumbnail?id=${id}&sz=w512`,
+      url,
+    ];
+  }
+  return [url];
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -737,6 +763,13 @@ function EnhancedCard({ item, index, scrollX, onAddToCart, canOrder }: {
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+  // Drive-aware image candidates with graceful fallback
+  const candidates = useMemo(() => buildImageCandidates(item?.img), [item?.img]);
+  const [srcIndex, setSrcIndex] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
+  const currentSrc = !imgFailed && candidates[srcIndex];
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item?.name ?? 'Item')}&background=475569&color=fff&size=512&bold=true`;
+
   return (
     <Animated.View style={[{
       width: CARD_W,
@@ -756,7 +789,23 @@ function EnhancedCard({ item, index, scrollX, onAddToCart, canOrder }: {
       {/* Image with overlay price badge */}
       <TouchableOpacity onPress={() => navigation.navigate('ItemDetail', { ...item, initialSelections: item?.defaultSelections })}>
         <View>
-          <Image source={{ uri: item.img }} style={{ width: "100%", height: IMG_H }} resizeMode="cover" />
+          {currentSrc ? (
+            <Image
+              source={{ uri: currentSrc }}
+              style={{ width: "100%", height: IMG_H }}
+              resizeMode="cover"
+              onError={() => {
+                if (srcIndex + 1 < candidates.length) setSrcIndex(srcIndex + 1);
+                else setImgFailed(true);
+              }}
+            />
+          ) : (
+            <Image
+              source={{ uri: fallback }}
+              style={{ width: "100%", height: IMG_H }}
+              resizeMode="cover"
+            />
+          )}
           <LinearGradient
             colors={theme.gradients.imageOverlay}
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 40 }}
