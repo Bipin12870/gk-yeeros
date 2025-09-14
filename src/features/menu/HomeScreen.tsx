@@ -277,16 +277,10 @@ export default function HomeScreen() {
                   {isAuthed ? (
                     <>
                       <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
-                      <GlassButton icon={<Ionicons name="log-out-outline" size={18} color={theme.colors.onDark} />} label="Logout" onPress={() => auth.signOut()} />
                     </>
                   ) : (
                     <>
                       <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
-                      <GlassButton 
-                        icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} 
-                        label="Sign Up" 
-                        onPress={() => navigation.navigate('Signup')}
-                      />
                     </>
                   )}
                 </View>
@@ -330,16 +324,10 @@ export default function HomeScreen() {
                   {isAuthed ? (
                     <>
                       <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
-                      <GlassButton icon={<Ionicons name="log-out-outline" size={18} color={theme.colors.onDark} />} label="Logout" onPress={() => auth.signOut()} />
                     </>
                   ) : (
                     <>
                       <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
-                      <GlassButton 
-                        icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} 
-                        label="Sign Up" 
-                        onPress={() => navigation.navigate('Signup')}
-                      />
                     </>
                   )}
                 </View>
@@ -449,17 +437,10 @@ export default function HomeScreen() {
               {isAuthed ? (
                 <>
                   <GlassButton variant="solid" icon={<Ionicons name="person-circle-outline" size={18} color={'#fff'} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
-                  <GlassButton variant="solid" icon={<Ionicons name="log-out-outline" size={18} color={'#fff'} />} label="Logout" onPress={() => auth.signOut()} />
                 </>
               ) : (
                 <>
                   <GlassButton variant="solid" icon={<Ionicons name="person-outline" size={18} color={'#fff'} />} label="Login" onPress={() => navigation.navigate('Login')} />
-                  <GlassButton 
-                    variant="solid"
-                    icon={<Ionicons name="person-outline" size={18} color={'#fff'} />} 
-                    label="Sign Up" 
-                    onPress={() => navigation.navigate('Signup')}
-                  />
                 </>
               )}
             </View>
