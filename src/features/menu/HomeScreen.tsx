@@ -263,26 +263,25 @@ export default function HomeScreen() {
                     </Text>
                   )}
                 </View>
-                {/* Action Buttons (web: right side) */}
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <GlassButton 
-                      icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
-                      label="Cart"
-                      badge={totalCount > 0 ? totalCount.toString() : undefined}
-                      onPress={() => navigation.navigate('Cart')}
-                    />
-                  </Animated.View>
-                  <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
-                  {isAuthed ? (
-                    <>
-                      <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
-                    </>
-                  ) : (
-                    <>
-                      <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
-                    </>
-                  )}
+                {/* Action Buttons (web: right side, vertical) */}
+                <View style={{ alignItems: 'flex-end' }}>
+                  <View style={{ gap: 6 }}>
+                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                      <GlassButton 
+                        icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
+                        label="Cart"
+                        badge={totalCount > 0 ? totalCount.toString() : undefined}
+                        onPress={() => navigation.navigate('Cart')}
+                        variant="plain"
+                      />
+                    </Animated.View>
+                    <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} variant="plain" />
+                    {isAuthed ? (
+                      <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} variant="plain" />
+                    ) : (
+                      <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} variant="plain" />
+                    )}
+                  </View>
                 </View>
               </View>
             ) : (
@@ -310,26 +309,25 @@ export default function HomeScreen() {
                     </Text>
                   )}
                 </View>
-                {/* Action Buttons (mobile: below) */}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <GlassButton 
-                      icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
-                      label="Cart"
-                      badge={totalCount > 0 ? totalCount.toString() : undefined}
-                      onPress={() => navigation.navigate('Cart')}
-                    />
-                  </Animated.View>
-                  <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} />
-                  {isAuthed ? (
-                    <>
-                      <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} />
-                    </>
-                  ) : (
-                    <>
-                      <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} />
-                    </>
-                  )}
+                {/* Action Buttons (mobile: below, vertical) */}
+                <View style={{ marginTop: 10 }}>
+                  <View style={{ gap: 6 }}>
+                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                      <GlassButton 
+                        icon={<Ionicons name="cart-outline" size={18} color={theme.colors.onDark} />} 
+                        label="Cart"
+                        badge={totalCount > 0 ? totalCount.toString() : undefined}
+                        onPress={() => navigation.navigate('Cart')}
+                        variant="plain"
+                      />
+                    </Animated.View>
+                    <GlassButton icon={<Ionicons name="heart-outline" size={18} color={theme.colors.onDark} />} label="Fav" onPress={() => navigation.navigate('Favorites')} variant="plain" />
+                    {isAuthed ? (
+                      <GlassButton icon={<Ionicons name="person-circle-outline" size={18} color={theme.colors.onDark} />} label="Profile" onPress={() => navigation.navigate('Profile')} variant="plain" />
+                    ) : (
+                      <GlassButton icon={<Ionicons name="person-outline" size={18} color={theme.colors.onDark} />} label="Login" onPress={() => navigation.navigate('Login')} variant="plain" />
+                    )}
+                  </View>
                 </View>
               </View>
             )}
@@ -612,28 +610,29 @@ function Badge({ text, tone }: { text: string; tone: "green" | "red" }) {
   );
 }
 
-function GlassButton({ icon, label, badge, onPress, variant }: { icon: React.ReactNode; label: string; badge?: string; onPress?: () => void; variant?: 'glass'|'solid' }) {
+function GlassButton({ icon, label, badge, onPress, variant }: { icon: React.ReactNode; label: string; badge?: string; onPress?: () => void; variant?: 'glass'|'solid'|'plain' }) {
   const isSolid = variant === 'solid';
+  const isPlain = variant === 'plain';
   return (
     <TouchableOpacity onPress={onPress} style={{
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: isSolid ? '#1f2937' : "rgba(255, 255, 255, 0.3)",
-      backgroundColor: isSolid ? '#111827' : "rgba(255, 255, 255, 0.2)",
+      paddingHorizontal: isPlain ? 0 : 12,
+      paddingVertical: isPlain ? 0 : 8,
+      borderRadius: isPlain ? 0 : 12,
+      borderWidth: isPlain ? 0 : 1,
+      borderColor: isPlain ? 'transparent' : (isSolid ? '#1f2937' : "rgba(255, 255, 255, 0.3)"),
+      backgroundColor: isPlain ? 'transparent' : (isSolid ? '#111827' : "rgba(255, 255, 255, 0.2)"),
       position: "relative",
     }}>
       {icon}
-      <Text style={{ color: isSolid ? '#fff' : "white", fontWeight: "600", fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: isSolid || isPlain ? '#fff' : "white", fontWeight: isPlain ? '700' : "600", fontSize: 12 }}>{label}</Text>
       {badge && (
         <View style={{
           position: "absolute",
-          top: -4,
-          right: -4,
+          top: isPlain ? -6 : -4,
+          right: isPlain ? -10 : -4,
           backgroundColor: theme.colors.danger,
           borderRadius: 10,
           minWidth: 18,
