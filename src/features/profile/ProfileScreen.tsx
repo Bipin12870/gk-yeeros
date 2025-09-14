@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, Alert, ActivityIndicator, SafeAreaView, TextInput, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthProvider';
 import { auth, db } from '../../lib/firebase';
 import { updateProfile, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
@@ -21,7 +22,6 @@ export default function ProfileScreen() {
   const [nameMsg, setNameMsg] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
   const [specialNote, setSpecialNote] = useState('');
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsMsg, setDetailsMsg] = useState<string | null>(null);
@@ -47,6 +47,8 @@ export default function ProfileScreen() {
     return { uri: user.photoURL };
   }, [imageError, user?.photoURL, name, email]);
 
+  // Header is provided by navigator; sign out moved near avatar below.
+
   // Prefill additional fields from users/{uid}
   React.useEffect(() => {
     (async () => {
@@ -57,7 +59,7 @@ export default function ProfileScreen() {
         if (data) {
           if (typeof data.phone === 'string') setPhone(data.phone);
           if (typeof data.address === 'string') setAddress(data.address);
-          if (typeof data.photoURL === 'string') setPhotoUrl(data.photoURL);
+          // photo URL editing removed from Contact & Preferences
           if (typeof data.specialNote === 'string') setSpecialNote(data.specialNote);
         }
       } catch {}
@@ -111,14 +113,8 @@ export default function ProfileScreen() {
       if (phone.trim() !== '') update.phone = phone.trim();
       if (address.trim() !== '') update.address = address.trim();
       if (specialNote.trim() !== '') update.specialNote = specialNote.trim();
-      if (photoUrl.trim() !== '') update.photoURL = photoUrl.trim();
-
       if (Object.keys(update).length > 1) {
         await updateDoc(doc(db, 'users', user.uid), update);
-      }
-
-      if (photoUrl.trim() !== '') {
-        await updateProfile(user, { photoURL: photoUrl.trim() });
       }
 
       setDetailsMsg('Profile details updated successfully.');
@@ -243,7 +239,16 @@ export default function ProfileScreen() {
         </View>
 
         {/* Profile Summary (keep as is) */}
-        <View style={{ alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 }}>
+        <View style={{ alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24, position: 'relative' }}>
+          <TouchableOpacity
+            onPress={async () => { try { await auth.signOut(); } catch (e) { Alert.alert('Error', 'Failed to sign out.'); } }}
+            style={{ position: 'absolute', top: 8, right: 24, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999 }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <Ionicons name="log-out-outline" size={18} color="#B91C1C" />
+            <Text style={{ color: '#B91C1C', fontWeight: '800' }}>Sign Out</Text>
+          </TouchableOpacity>
           <Image source={avatar} onError={() => setImageError(true)} style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#f3f4f6', marginBottom: 12 }} />
           <Text style={{ fontSize: 24, fontWeight: '800', color: '#1f2937' }}>{name || 'Guest User'}</Text>
           {!!email && <Text style={{ fontSize: 16, color: '#6b7280' }}>{email}</Text>}
@@ -337,15 +342,6 @@ export default function ProfileScreen() {
             placeholderTextColor="#9ca3af"
           />
 
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginLeft: 4 }}>Photo URL</Text>
-          <TextInput
-            placeholder="https://example.com/your-photo.jpg"
-            value={photoUrl}
-            onChangeText={setPhotoUrl}
-            autoCapitalize="none"
-            style={{ borderWidth: 2, borderColor: '#f3f4f6', backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, color: '#111827', marginBottom: 12 }}
-            placeholderTextColor="#9ca3af"
-          />
 
           <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginLeft: 4 }}>Allergies / Special Requests</Text>
           <TextInput
@@ -427,13 +423,7 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Sign Out */}
-        <TouchableOpacity
-          onPress={async () => { try { await auth.signOut(); } catch (e) { Alert.alert('Error', 'Failed to sign out.'); } }}
-          style={{ marginHorizontal: 24, marginTop: 20, backgroundColor: '#ef4444', padding: 14, borderRadius: 12, alignItems: 'center' }}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Sign Out</Text>
-        </TouchableOpacity>
+        {/* Sign Out moved to headerRight */}
       </ScrollView>
     </SafeAreaView>
   );
