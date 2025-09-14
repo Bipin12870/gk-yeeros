@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, Alert, ActivityIndicator, SafeAreaView, TextInput } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { auth, db } from '../../lib/firebase';
-import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { updateProfile, deleteUser } from 'firebase/auth';
+import { doc, updateDoc, serverTimestamp, getDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { sendReset } from '../../data/repositories/AuthRepo';
 import { watchUserOrders, type OrderRecord } from '../../data/repositories/OrderRepo';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +25,7 @@ export default function ProfileScreen() {
   const [specialNote, setSpecialNote] = useState('');
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsMsg, setDetailsMsg] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -140,6 +141,60 @@ export default function ProfileScreen() {
     } finally {
       setResetting(false);
     }
+  };
+
+  const onDeleteAccount = async () => {
+    if (!user) return;
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and personal data (profile, favorites, and cart). This cannot be undone. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const uid = user.uid;
+              // Delete favorites subcollection
+              try {
+                const favCol = collection(db, 'users', uid, 'favorites');
+                const favSnap = await getDocs(favCol);
+                await Promise.all(favSnap.docs.map((d) => deleteDoc(d.ref)));
+              } catch {}
+
+              // Delete cart doc
+              try { await deleteDoc(doc(db, 'users', uid, 'cart', 'current')); } catch {}
+
+              // Delete user profile doc
+              try { await deleteDoc(doc(db, 'users', uid)); } catch {}
+
+              // Finally delete auth user (may require recent login)
+              try {
+                await deleteUser(user);
+                Alert.alert('Account deleted', 'Your account and data have been removed.');
+                // Ensure logged out and navigate home
+                try { await auth.signOut(); } catch {}
+                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+              } catch (e: any) {
+                if (e?.code === 'auth/requires-recent-login') {
+                  // Sign out and take user to Login so they can reauthenticate, then try again
+                  try { await auth.signOut(); } catch {}
+                  Alert.alert('Please sign in again', 'For security, please sign in again, then open Profile and tap Delete Account.');
+                  navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                } else {
+                  Alert.alert('Could not delete account', e?.message || 'Please try again.');
+                }
+                setDeleting(false);
+                return;
+              }
+            } finally {
+              setDeleting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -307,6 +362,15 @@ export default function ProfileScreen() {
               })}
             </View>
           )}
+        </View>
+
+        {/* Danger Zone */}
+        <View style={{ marginHorizontal: 24, marginTop: 20, backgroundColor: '#FEF2F2', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#FCA5A5' }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#991B1B', marginBottom: 8 }}>Delete Account</Text>
+          <Text style={{ color: '#7F1D1D', marginBottom: 12 }}>This will permanently delete your account, favorites, and cart. Orders already placed will remain for compliance and cannot be removed here.</Text>
+          <TouchableOpacity onPress={onDeleteAccount} disabled={deleting} style={{ backgroundColor: '#DC2626', padding: 14, borderRadius: 12, alignItems: 'center' }}>
+            {deleting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>Delete My Account</Text>}
+          </TouchableOpacity>
         </View>
 
         {/* Sign Out */}
