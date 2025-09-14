@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, Alert, ActivityIndicator, SafeAreaView, TextInput } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, Alert, ActivityIndicator, SafeAreaView, TextInput, Platform } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { auth, db } from '../../lib/firebase';
-import { updateProfile, deleteUser } from 'firebase/auth';
+import { updateProfile, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp, getDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { sendReset } from '../../data/repositories/AuthRepo';
 import { watchUserOrders, type OrderRecord } from '../../data/repositories/OrderRepo';
@@ -26,6 +26,9 @@ export default function ProfileScreen() {
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsMsg, setDetailsMsg] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [needsReauth, setNeedsReauth] = useState(false);
+  const [reauthPassword, setReauthPassword] = useState('');
+  const [reauthBusy, setReauthBusy] = useState(false);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -143,58 +146,92 @@ export default function ProfileScreen() {
     }
   };
 
+  const performDelete = async () => {
+    if (!user) return;
+    setDeleting(true);
+    try {
+      const uid = user.uid;
+      // Delete favorites subcollection
+      try {
+        const favCol = collection(db, 'users', uid, 'favorites');
+        const favSnap = await getDocs(favCol);
+        await Promise.all(favSnap.docs.map((d) => deleteDoc(d.ref)));
+      } catch {}
+
+      // Delete cart doc
+      try { await deleteDoc(doc(db, 'users', uid, 'cart', 'current')); } catch {}
+
+      // Delete user profile doc
+      try { await deleteDoc(doc(db, 'users', uid)); } catch {}
+
+      // Finally delete auth user (may require recent login)
+      try {
+        await deleteUser(user);
+        Alert.alert('Account deleted', 'Your account and data have been removed.');
+        // Ensure logged out and navigate home
+        try { await auth.signOut(); } catch {}
+        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      } catch (e: any) {
+        if (e?.code === 'auth/requires-recent-login') {
+          setNeedsReauth(true);
+          Alert.alert('Reauthentication required', 'Please re-enter your password to delete your account.');
+        } else {
+          Alert.alert('Could not delete account', e?.message || 'Please try again.');
+        }
+        setDeleting(false);
+        return;
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const onDeleteAccount = async () => {
     if (!user) return;
+    if (Platform.OS === 'web') {
+      // On web, React Native's Alert doesn't support multiple buttons; use confirm()
+      const confirmed = typeof window !== 'undefined' && window.confirm(
+        'This will permanently delete your account and personal data (profile, favorites, and cart). This cannot be undone. Continue?'
+      );
+      if (confirmed) {
+        await performDelete();
+      }
+      return;
+    }
+
     Alert.alert(
       'Delete Account',
       'This will permanently delete your account and personal data (profile, favorites, and cart). This cannot be undone. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              const uid = user.uid;
-              // Delete favorites subcollection
-              try {
-                const favCol = collection(db, 'users', uid, 'favorites');
-                const favSnap = await getDocs(favCol);
-                await Promise.all(favSnap.docs.map((d) => deleteDoc(d.ref)));
-              } catch {}
-
-              // Delete cart doc
-              try { await deleteDoc(doc(db, 'users', uid, 'cart', 'current')); } catch {}
-
-              // Delete user profile doc
-              try { await deleteDoc(doc(db, 'users', uid)); } catch {}
-
-              // Finally delete auth user (may require recent login)
-              try {
-                await deleteUser(user);
-                Alert.alert('Account deleted', 'Your account and data have been removed.');
-                // Ensure logged out and navigate home
-                try { await auth.signOut(); } catch {}
-                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-              } catch (e: any) {
-                if (e?.code === 'auth/requires-recent-login') {
-                  // Sign out and take user to Login so they can reauthenticate, then try again
-                  try { await auth.signOut(); } catch {}
-                  Alert.alert('Please sign in again', 'For security, please sign in again, then open Profile and tap Delete Account.');
-                  navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-                } else {
-                  Alert.alert('Could not delete account', e?.message || 'Please try again.');
-                }
-                setDeleting(false);
-                return;
-              }
-            } finally {
-              setDeleting(false);
-            }
-          }
-        }
+        { text: 'Delete', style: 'destructive', onPress: performDelete }
       ]
     );
+  };
+
+  const onConfirmReauthAndDelete = async () => {
+    if (!user) return;
+    if (!user.email) {
+      Alert.alert('No email on account', 'Cannot reauthenticate without an email. Please sign out and sign in again.');
+      return;
+    }
+    const pwd = reauthPassword.trim();
+    if (pwd.length < 6) {
+      Alert.alert('Password required', 'Please enter your password to continue.');
+      return;
+    }
+    setReauthBusy(true);
+    try {
+      const cred = EmailAuthProvider.credential(user.email, pwd);
+      await reauthenticateWithCredential(user, cred);
+      setNeedsReauth(false);
+      setReauthPassword('');
+      await performDelete();
+    } catch (e: any) {
+      Alert.alert('Reauthentication failed', e?.message || 'Please double-check your password.');
+    } finally {
+      setReauthBusy(false);
+    }
   };
 
   return (
@@ -371,6 +408,23 @@ export default function ProfileScreen() {
           <TouchableOpacity onPress={onDeleteAccount} disabled={deleting} style={{ backgroundColor: '#DC2626', padding: 14, borderRadius: 12, alignItems: 'center' }}>
             {deleting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>Delete My Account</Text>}
           </TouchableOpacity>
+          {needsReauth && (
+            <View style={{ marginTop: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 12, padding: 12 }}>
+              <Text style={{ color: '#991B1B', fontWeight: '700', marginBottom: 8 }}>Please re-enter your password</Text>
+              <TextInput
+                placeholder="Password"
+                value={reauthPassword}
+                onChangeText={setReauthPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                style={{ borderWidth: 2, borderColor: '#f3f4f6', backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, color: '#111827', marginBottom: 8 }}
+                placeholderTextColor="#9ca3af"
+              />
+              <TouchableOpacity onPress={onConfirmReauthAndDelete} disabled={reauthBusy} style={{ backgroundColor: '#991B1B', padding: 12, borderRadius: 12, alignItems: 'center' }}>
+                {reauthBusy ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>Confirm and Delete</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Sign Out */}
